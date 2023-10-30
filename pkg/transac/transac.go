@@ -1,7 +1,6 @@
 package txnlayer
 
 import (
-	"errors"
 	"net/netip"
 	"sync/atomic"
 	"time"
@@ -10,6 +9,7 @@ import (
 const (
 	Unknown uint32 = iota
 	Calling
+	Trying
 	Proceeding
 	Completed
 	Terminated
@@ -17,9 +17,9 @@ const (
 
 type Message interface {
 	Ack() Message
-	IsInvite() bool
 	IsResponse() bool
 	TopViaBranch() string
+	Method() string
 	ResponseCode() int
 }
 
@@ -32,12 +32,14 @@ type EndPoint interface {
 	Consume(msg Message)
 	Error(err error)
 	TimeoutError(msg Message)
+	TxnDestroy(ID string)
 }
 
 type TxnBasic struct {
 	transp   Transport
 	endpoint EndPoint
 	branch   string
+	method   string
 	state    *atomic.Uint32
 	timer    Timer
 	addr     netip.AddrPort
@@ -46,23 +48,28 @@ type TxnBasic struct {
 
 type Timer struct {
 	T1 time.Duration
+	T2 time.Duration
+	T4 time.Duration
 	D  time.Duration
 }
 
 func initTimer() Timer {
 	return Timer{
 		T1: 500 * time.Millisecond,
+		T2: 4 * time.Second,
+		T4: 5 * time.Second,
 		D:  32 * time.Second,
 	}
 }
 
-func initBasicTxn(transp Transport, endpoint EndPoint, branch string) TxnBasic {
+func initBasicTxn(transp Transport, endpoint EndPoint, msg Message) TxnBasic {
 	state := new(atomic.Uint32)
 	state.Store(Unknown)
 	return TxnBasic{
 		transp:   transp,
 		endpoint: endpoint,
-		branch:   branch,
+		method:   msg.Method(),
+		branch:   msg.TopViaBranch(),
 		state:    state,
 		timer:    initTimer(),
 		halt:     make(chan struct{}),
@@ -90,10 +97,7 @@ func (txn TxnBasic) terminate() {
 		close(txn.halt)
 	}
 	txn.state.Store(Terminated)
-}
-
-type TxnClientNonInvite struct {
-	TxnBasic
+	txn.endpoint.TxnDestroy(txn.ID())
 }
 
 type Transaction interface {
@@ -105,38 +109,47 @@ type Transaction interface {
 type pool map[string]Transaction
 
 type TxnLayer struct {
-	client   pool
-	server   pool
+	pool     pool
 	endpoint EndPoint
 }
 
 // EndPoint is actually an interface to TU
 func New(endpoint EndPoint) *TxnLayer {
 	return &TxnLayer{
-		client:   make(pool),
-		server:   make(pool),
+		pool:     make(pool),
 		endpoint: endpoint,
 	}
 }
 
 // client transaction create
 // used by TU to start new transaction
-func (tl *TxnLayer) Client(msg Message, transp Transport, addr netip.AddrPort) error {
+func (txl *TxnLayer) Client(msg Message, transp Transport, addr netip.AddrPort) {
 	var txn Transaction
-	if msg.IsInvite() {
-		txn = createClientInvTxn(transp, tl.endpoint, msg)
+	if msg.Method() == "INVITE" {
+		txn = createClientInvTxn(transp, txl.endpoint, msg)
 	} else {
-		return errors.New("not implemented client non-invite txn")
-		// txn = &TxnClientNonInvite{}
+		txn = createClientNonInvTxn(transp, txl.endpoint, msg)
 	}
 
 	txn.Init(msg, addr)
 
-	tl.client[txn.ID()] = txn
-	return nil
+	txl.push(txn)
 }
 
 // consume new message from transport
-// match existing or create new transaction
-func (s *TxnLayer) Consume(msg Message, transp Transport, addr netip.AddrPort) {
+// match existing or create new Server transaction
+func (txl *TxnLayer) Consume(msg Message, transp Transport, addr netip.AddrPort) {
+	if txn, exists := txl.pool[msg.TopViaBranch()]; exists {
+		txn.Consume(msg)
+	} else {
+		// new server txn
+	}
+}
+
+func (txl *TxnLayer) Destroy(txnID string) {
+	delete(txl.pool, txnID)
+}
+
+func (txl *TxnLayer) push(txn Transaction) {
+	txl.pool[txn.ID()] = txn
 }

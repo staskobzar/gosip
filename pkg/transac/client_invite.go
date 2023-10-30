@@ -11,7 +11,7 @@ type TxnClientInvite struct {
 
 func createClientInvTxn(transp Transport, endpoint EndPoint, msg Message) *TxnClientInvite {
 	return &TxnClientInvite{
-		TxnBasic: initBasicTxn(transp, endpoint, msg.TopViaBranch()),
+		TxnBasic: initBasicTxn(transp, endpoint, msg),
 	}
 }
 
@@ -34,6 +34,7 @@ func (txn *TxnClientInvite) Consume(msg Message) {
 	case Completed:
 		// absorb re-transactions
 		if code >= 300 && code <= 699 {
+			// 17.1.1.3 Construction of the ACK Request
 			txn.Send(msg.Ack())
 		}
 	default:
@@ -43,8 +44,8 @@ func (txn *TxnClientInvite) Consume(msg Message) {
 
 func (txn *TxnClientInvite) calling(msg Message) {
 	txn.state.Store(Calling)
+	txn.Send(msg)
 	if txn.transp.IsReliable() {
-		txn.Send(msg)
 		return // no timer A for reliable transport
 	}
 
@@ -55,22 +56,17 @@ func (txn *TxnClientInvite) calling(msg Message) {
 func (txn *TxnClientInvite) fireTimerA(msg Message) {
 	go func() {
 		t1 := txn.timer.T1
-		timer := time.NewTimer(t1)
-		txn.Send(msg)
-		// in case if state is failed to change use the same
-		// time limit as timer B (64*T1) INVITE transaction limit
-		for t := t1; t <= (64 * t1); t *= 2 {
+		timer := time.NewTimer(0)
+		state := txn.state.Load()
+		for t := t1; state == Calling; t *= 2 {
 			timer.Reset(t)
 			select {
 			case <-timer.C:
-				if txn.state.Load() != Calling {
-					return
-				}
+				state = txn.state.Load()
+				txn.Send(msg) // resend SIP message
 			case <-txn.halt:
 				return
 			}
-			// resend SIP message
-			txn.Send(msg)
 		}
 	}()
 }
@@ -84,7 +80,7 @@ func (txn *TxnClientInvite) fireTimerB(msg Message) {
 				txn.terminate()
 			}
 		case <-txn.halt:
-			return
+			// transaction destroyed
 		}
 	}()
 }
@@ -100,7 +96,7 @@ func (txn *TxnClientInvite) fireTimerD() {
 		case <-time.After(txn.timer.D):
 			txn.terminate()
 		case <-txn.halt:
-			return
+			// transaction destroyed
 		}
 	}()
 }
@@ -114,8 +110,9 @@ func (txn *TxnClientInvite) proceed(code int, msg Message) {
 		txn.state.Store(Completed)
 		txn.Send(msg.Ack())
 		txn.fireTimerD()
-	} else {
-		// TODO: log invalid code error
 	}
+	// else {
+	// TODO: log invalid code error
+	// }
 	txn.endpoint.Consume(msg)
 }

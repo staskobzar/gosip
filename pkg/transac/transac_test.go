@@ -1,67 +1,51 @@
 package txnlayer
 
 import (
-	"net/netip"
-	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type mockMsg struct {
-	isInv  bool
-	isResp bool
-	isAck  bool
-	code   int
-	branch string
+func TestTxnLayerClient(t *testing.T) {
+	tests := map[string]struct {
+		method   string
+		wantType any
+	}{
+		`invite txn`:     {"INVITE", &TxnClientInvite{}},
+		`non-invite txn`: {"PUBLISH", &TxnClientNonInvite{}},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			endpoint, transp, msg, addr := createMock()
+			msg.method = tc.method
+
+			txl := New(endpoint)
+			assert.Zero(t, len(txl.pool))
+			assert.Zero(t, transp.msgLen())
+
+			txl.Client(msg, transp, addr)
+			assert.Equal(t, 1, len(txl.pool))
+			assert.True(t, transp.msgLen() > 0)
+			assert.IsType(t, tc.wantType, txl.pool[msg.TopViaBranch()])
+		})
+	}
 }
 
-func (m *mockMsg) Ack() Message {
-	return &mockMsg{isAck: true, branch: m.branch}
-}
-func (m *mockMsg) IsInvite() bool       { return m.isInv }
-func (m *mockMsg) IsResponse() bool     { return m.isResp }
-func (m *mockMsg) TopViaBranch() string { return m.branch }
-func (m *mockMsg) ResponseCode() int    { return m.code }
+func TestTxnLayerConsume(t *testing.T) {
+	endpoint, transp, msg, addr := createMock()
+	transp.isReliable = true
 
-type mockTransp struct {
-	isReliable bool
-	addr       netip.AddrPort
-	msg        []Message
-	mu         sync.Mutex
-	senderr    error
-}
+	txl := New(endpoint)
+	txl.Client(msg, transp, addr)
+	assert.Equal(t, 1, len(txl.pool))
+	assert.Equal(t, 1, transp.msgLen())
 
-func (t *mockTransp) Send(addr netip.AddrPort, msg Message) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.addr = addr
-	t.msg = append(t.msg, msg)
-	return t.senderr
-}
-func (t *mockTransp) IsReliable() bool { return t.isReliable }
-func (t *mockTransp) msgLen() int {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return len(t.msg)
-}
+	resp := &mockMsg{code: 200, branch: msg.TopViaBranch()}
+	txl.Consume(resp, transp, addr)
+	txl.Destroy(endpoint.destroyID)
 
-type mockEndPoint struct {
-	mu   sync.Mutex
-	msg  []Message
-	tout bool
-	err  error
-}
-
-func (e *mockEndPoint) Consume(msg Message) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.msg = append(e.msg, msg)
-}
-func (e *mockEndPoint) Error(err error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.err = err
-}
-func (e *mockEndPoint) TimeoutError(_ Message) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.tout = true
+	assert.Zero(t, len(txl.pool))
+	assert.Equal(t, 1, transp.msgLen())
+	assert.Equal(t, 1, endpoint.msgLen())
 }
