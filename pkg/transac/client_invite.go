@@ -1,4 +1,4 @@
-package txnlayer
+package transac
 
 import (
 	"net/netip"
@@ -76,7 +76,7 @@ func (txn *TxnClientInvite) fireTimerB(msg Message) {
 		select {
 		case <-time.After(txn.timer.T1 * 64):
 			if txn.state.Load() == Calling {
-				txn.endpoint.TimeoutError(msg)
+				txn.endpoint.Error(ErrTimeout, msg)
 				txn.terminate()
 			}
 		case <-txn.halt:
@@ -114,5 +114,5 @@ func (txn *TxnClientInvite) proceed(code int, msg Message) {
 	// else {
 	// TODO: log invalid code error
 	// }
-	txn.endpoint.Consume(msg)
+	txn.endpoint.TUConsume(msg)
 }

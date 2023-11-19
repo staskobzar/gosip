@@ -1,4 +1,4 @@
-package txnlayer
+package transac
 
 import (
 	"net/netip"
@@ -102,7 +102,7 @@ func (txn *TxnClientNonInvite) fireTimerF(msg Message) {
 		case <-time.After(txn.timer.T1 * 64):
 			state := txn.state.Load()
 			if state == Trying || state == Proceeding {
-				txn.endpoint.TimeoutError(msg)
+				txn.endpoint.Error(ErrTimeout, msg)
 				txn.terminate()
 			}
 		case <-txn.halt:

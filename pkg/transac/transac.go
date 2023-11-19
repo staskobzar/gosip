@@ -1,6 +1,7 @@
-package txnlayer
+package transac
 
 import (
+	"errors"
 	"net/netip"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,10 @@ const (
 	Proceeding
 	Completed
 	Terminated
+)
+
+var (
+	ErrTimeout = errors.New("SIP Timeout")
 )
 
 type Message interface {
@@ -29,9 +34,8 @@ type Transport interface {
 }
 
 type EndPoint interface {
-	Consume(msg Message)
-	Error(err error)
-	TimeoutError(msg Message)
+	TUConsume(msg Message)
+	Error(err error, msg Message)
 	TxnDestroy(ID string)
 }
 
@@ -84,7 +88,7 @@ func (txn TxnBasic) Send(msg Message) {
 	err := txn.transp.Send(txn.addr, msg)
 	if err != nil {
 		txn.state.Store(Terminated)
-		txn.endpoint.Error(err)
+		txn.endpoint.Error(err, msg)
 	}
 }
 
@@ -109,15 +113,13 @@ type Transaction interface {
 type pool map[string]Transaction
 
 type TxnLayer struct {
-	pool     pool
-	endpoint EndPoint
+	pool pool
 }
 
 // EndPoint is actually an interface to TU
 func New(endpoint EndPoint) *TxnLayer {
 	return &TxnLayer{
-		pool:     make(pool),
-		endpoint: endpoint,
+		pool: make(pool),
 	}
 }
 
@@ -126,9 +128,9 @@ func New(endpoint EndPoint) *TxnLayer {
 func (txl *TxnLayer) Client(msg Message, transp Transport, addr netip.AddrPort) {
 	var txn Transaction
 	if msg.Method() == "INVITE" {
-		txn = createClientInvTxn(transp, txl.endpoint, msg)
+		txn = createClientInvTxn(transp, txl, msg)
 	} else {
-		txn = createClientNonInvTxn(transp, txl.endpoint, msg)
+		txn = createClientNonInvTxn(transp, txl, msg)
 	}
 
 	txn.Init(msg, addr)
@@ -146,8 +148,16 @@ func (txl *TxnLayer) Consume(msg Message, transp Transport, addr netip.AddrPort)
 	}
 }
 
-func (txl *TxnLayer) Destroy(txnID string) {
+func (txl *TxnLayer) TxnDestroy(txnID string) {
 	delete(txl.pool, txnID)
+}
+
+func (txl *TxnLayer) TUConsume(msg Message) {
+	// TODO send to chan msg
+}
+
+func (txl *TxnLayer) Error(err error, msg Message) {
+	// TODO send err to upstream chan
 }
 
 func (txl *TxnLayer) push(txn Transaction) {

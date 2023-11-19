@@ -1,6 +1,7 @@
-package txnlayer
+package transac
 
 import (
+	"errors"
 	"net/netip"
 	"sync"
 )
@@ -49,26 +50,21 @@ type mockEndPoint struct {
 	err       error
 }
 
-func (e *mockEndPoint) Consume(msg Message) {
+func (e *mockEndPoint) TUConsume(msg Message) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.msg = append(e.msg, msg)
 }
-func (e *mockEndPoint) Error(err error) {
+func (e *mockEndPoint) Error(err error, msg Message) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.err = err
-}
-func (e *mockEndPoint) TimeoutError(_ Message) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.tout = true
 }
 func (e *mockEndPoint) TxnDestroy(id string) { e.destroyID = id }
 func (e *mockEndPoint) isTout() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.tout
+	return errors.Is(ErrTimeout, e.err)
 }
 func (e *mockEndPoint) msgLen() int {
 	e.mu.Lock()

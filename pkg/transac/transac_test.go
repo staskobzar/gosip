@@ -1,4 +1,4 @@
-package txnlayer
+package transac
 
 import (
 	"testing"
@@ -43,9 +43,8 @@ func TestTxnLayerConsume(t *testing.T) {
 
 	resp := &mockMsg{code: 200, branch: msg.TopViaBranch()}
 	txl.Consume(resp, transp, addr)
-	txl.Destroy(endpoint.destroyID)
+	txl.TxnDestroy(endpoint.destroyID)
 
 	assert.Zero(t, len(txl.pool))
 	assert.Equal(t, 1, transp.msgLen())
-	assert.Equal(t, 1, endpoint.msgLen())
 }
