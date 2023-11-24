@@ -1,27 +1,29 @@
-package transac
+package transaction
 
 import (
+	"gosip/pkg/logger"
+	"gosip/pkg/sip"
 	"net/netip"
 	"time"
 )
 
-type TxnClientInvite struct {
-	TxnBasic
+type ClientInvite struct {
+	Basic
 }
 
-func createClientInvTxn(transp Transport, endpoint EndPoint, msg Message) *TxnClientInvite {
-	return &TxnClientInvite{
-		TxnBasic: initBasicTxn(transp, endpoint, msg),
+func createClientInvite(transp sip.Transport, endpoint EndPoint, msg sip.Message) *ClientInvite {
+	return &ClientInvite{
+		Basic: initBasicTxn(transp, endpoint, msg),
 	}
 }
 
-func (txn *TxnClientInvite) Init(msg Message, addr netip.AddrPort) {
+func (txn *ClientInvite) Init(msg sip.Message, addr netip.AddrPort) {
 	txn.addr = addr
 	txn.calling(msg)
 	txn.fireTimerB(msg)
 }
 
-func (txn *TxnClientInvite) Consume(msg Message) {
+func (txn *ClientInvite) Consume(msg sip.Message) {
 	if !msg.IsResponse() {
 		return
 	}
@@ -38,11 +40,11 @@ func (txn *TxnClientInvite) Consume(msg Message) {
 			txn.Send(msg.Ack())
 		}
 	default:
-		// TODO: log invalid state
+		logger.Err("client invite txn should not be in this state %d", txn.state.Load())
 	}
 }
 
-func (txn *TxnClientInvite) calling(msg Message) {
+func (txn *ClientInvite) calling(msg sip.Message) {
 	txn.state.Store(Calling)
 	txn.Send(msg)
 	if txn.transp.IsReliable() {
@@ -53,7 +55,7 @@ func (txn *TxnClientInvite) calling(msg Message) {
 	txn.fireTimerA(msg)
 }
 
-func (txn *TxnClientInvite) fireTimerA(msg Message) {
+func (txn *ClientInvite) fireTimerA(msg sip.Message) {
 	go func() {
 		t1 := txn.timer.T1
 		timer := time.NewTimer(0)
@@ -71,7 +73,7 @@ func (txn *TxnClientInvite) fireTimerA(msg Message) {
 	}()
 }
 
-func (txn *TxnClientInvite) fireTimerB(msg Message) {
+func (txn *ClientInvite) fireTimerB(msg sip.Message) {
 	go func() {
 		select {
 		case <-time.After(txn.timer.T1 * 64):
@@ -85,7 +87,7 @@ func (txn *TxnClientInvite) fireTimerB(msg Message) {
 	}()
 }
 
-func (txn *TxnClientInvite) fireTimerD() {
+func (txn *ClientInvite) fireTimerD() {
 	if txn.transp.IsReliable() {
 		// for reliable transport timer D is 0
 		txn.terminate()
@@ -101,18 +103,18 @@ func (txn *TxnClientInvite) fireTimerD() {
 	}()
 }
 
-func (txn *TxnClientInvite) proceed(code int, msg Message) {
-	if code >= 100 && code < 200 {
+func (txn *ClientInvite) proceed(code int, msg sip.Message) {
+	switch {
+	case code >= 100 && code < 200:
 		txn.state.Store(Proceeding)
-	} else if code >= 200 && code < 300 {
+	case code >= 200 && code < 300:
 		txn.terminate()
-	} else if code >= 300 && code <= 699 {
+	case code >= 300 && code <= 699:
 		txn.state.Store(Completed)
 		txn.Send(msg.Ack())
 		txn.fireTimerD()
+	default:
+		logger.Err("invalid proceed code %d", code)
 	}
-	// else {
-	// TODO: log invalid code error
-	// }
 	txn.endpoint.TUConsume(msg)
 }

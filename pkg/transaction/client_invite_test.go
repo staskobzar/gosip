@@ -1,4 +1,4 @@
-package transac
+package transaction
 
 import (
 	"errors"
@@ -11,14 +11,14 @@ import (
 func TestCreateClientInvTnx(t *testing.T) {
 	endpoint, transp, msg, _ := createMock()
 
-	txn := createClientInvTxn(transp, endpoint, msg)
+	txn := createClientInvite(transp, endpoint, msg)
 	assert.Equal(t, Unknown, txn.state.Load())
 }
 
-func TestTxnClientInviteCalling(t *testing.T) {
+func TestClientInviteCalling(t *testing.T) {
 	t.Run("retransactions for not reliable transport", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 
 		assert.False(t, txn.transp.IsReliable())
@@ -33,7 +33,7 @@ func TestTxnClientInviteCalling(t *testing.T) {
 
 	t.Run("no retransactions for reliable transport", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 		transp.isReliable = true
 
@@ -43,11 +43,11 @@ func TestTxnClientInviteCalling(t *testing.T) {
 	})
 }
 
-func TestTxnClientInviteInit(t *testing.T) {
+func TestClientInviteInit(t *testing.T) {
 	t.Run("init with reliable transport", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
 		transp.isReliable = true
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 
 		txn.Init(msg, addr)
@@ -60,7 +60,7 @@ func TestTxnClientInviteInit(t *testing.T) {
 
 	t.Run("init with non-reliable transport", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 
 		txn.Init(msg, addr)
@@ -72,18 +72,18 @@ func TestTxnClientInviteInit(t *testing.T) {
 	})
 }
 
-func TestTxnClientInviteConsume(t *testing.T) {
-	endPointMsg := func(txn *TxnClientInvite, index int) *mockMsg {
+func TestClientInviteConsume(t *testing.T) {
+	endPointMsg := func(txn *ClientInvite, index int) *mockMsg {
 		return txn.endpoint.(*mockEndPoint).msg[index].(*mockMsg)
 	}
-	transpMsg := func(txn *TxnClientInvite, index int) *mockMsg {
+	transpMsg := func(txn *ClientInvite, index int) *mockMsg {
 		return txn.transp.(*mockTransp).msg[index].(*mockMsg)
 	}
 
 	t.Run("ignore if Message is not response", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
 
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.Consume(&mockMsg{})
 
 		assert.Equal(t, Unknown, txn.state.Load())
@@ -105,7 +105,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				endpoint, transp, msg, addr := createMock()
 
-				txn := createClientInvTxn(transp, endpoint, msg)
+				txn := createClientInvite(transp, endpoint, msg)
 				txn.Init(msg, addr)
 				assert.Equal(t, Calling, txn.state.Load())
 
@@ -129,7 +129,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
 			transp.senderr = errors.New("failed to send")
 
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.state.Store(Calling)
 
 			txn.Consume(&mockMsg{code: 300})
@@ -140,7 +140,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 		t.Run("terminates on reliable transport", func(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
 			transp.isReliable = true
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.state.Store(Calling)
 			txn.Consume(&mockMsg{code: 404})
 			assert.Equal(t, Terminated, txn.state.Load())
@@ -162,7 +162,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				endpoint, transp, msg, _ := createMock()
 
-				txn := createClientInvTxn(transp, endpoint, msg)
+				txn := createClientInvite(transp, endpoint, msg)
 				txn.state.Store(Proceeding)
 
 				resp := &mockMsg{code: tc.respCode}
@@ -181,7 +181,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 		t.Run("terminates on reliable transport", func(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
 			transp.isReliable = true
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.state.Store(Proceeding)
 			txn.Consume(&mockMsg{code: 404})
 			assert.Equal(t, Terminated, txn.state.Load())
@@ -192,7 +192,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 		t.Run("absorb 300-699 responses", func(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
 
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.state.Store(Completed)
 
 			txn.Consume(&mockMsg{code: 100})
@@ -217,7 +217,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
 			transp.senderr = errors.New("failed to send")
 
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.state.Store(Completed)
 
 			txn.Consume(&mockMsg{code: 500})
@@ -227,7 +227,7 @@ func TestTxnClientInviteConsume(t *testing.T) {
 
 		t.Run("terminates on timer D fired", func(t *testing.T) {
 			endpoint, transp, msg, _ := createMock()
-			txn := createClientInvTxn(transp, endpoint, msg)
+			txn := createClientInvite(transp, endpoint, msg)
 			txn.timer.D = 1 * time.Millisecond
 
 			txn.state.Store(Proceeding)

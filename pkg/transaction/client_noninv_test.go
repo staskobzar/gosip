@@ -1,4 +1,4 @@
-package transac
+package transaction
 
 import (
 	"fmt"
@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTxnClientNonInviteInit(t *testing.T) {
+func TestClientNonInviteInit(t *testing.T) {
 	t.Run("with unreliable transport", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 
 		assert.Equal(t, Unknown, txn.state.Load())
@@ -27,7 +27,7 @@ func TestTxnClientNonInviteInit(t *testing.T) {
 
 	t.Run("with reliable transport", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 		transp.isReliable = true
 
@@ -41,7 +41,7 @@ func TestTxnClientNonInviteInit(t *testing.T) {
 	t.Run("ignore if Message is not response", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
 
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.Consume(&mockMsg{})
 
 		assert.Equal(t, Unknown, txn.state.Load())
@@ -49,7 +49,7 @@ func TestTxnClientNonInviteInit(t *testing.T) {
 
 	t.Run("terminates on trying state on timeout timer F", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 		transp.isReliable = true
 
@@ -62,11 +62,11 @@ func TestTxnClientNonInviteInit(t *testing.T) {
 	})
 }
 
-func TestTxnClientNonInviteConsume(t *testing.T) {
+func TestClientNonInviteConsume(t *testing.T) {
 	t.Run("ignore if Message is not response", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
 
-		txn := createClientInvTxn(transp, endpoint, msg)
+		txn := createClientInvite(transp, endpoint, msg)
 		txn.Consume(&mockMsg{})
 
 		assert.Equal(t, Unknown, txn.state.Load())
@@ -93,7 +93,7 @@ func TestTxnClientNonInviteConsume(t *testing.T) {
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
 				endpoint, transp, msg, _ := createMock()
-				txn := createClientNonInvTxn(transp, endpoint, msg)
+				txn := createClientNonInvite(transp, endpoint, msg)
 				txn.state.Store(tc.onState)
 				txn.Consume(&mockMsg{code: tc.respCode})
 				assert.Equal(t, tc.wantState, txn.state.Load())
@@ -104,7 +104,7 @@ func TestTxnClientNonInviteConsume(t *testing.T) {
 	t.Run("on trying transport error sends to TU and terminates transaction", func(t *testing.T) {
 		endpoint, transp, msg, addr := createMock()
 		transp.senderr = fmt.Errorf("transport failed to send")
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 
 		assert.Nil(t, endpoint.err)
 		txn.Init(msg, addr)
@@ -114,10 +114,10 @@ func TestTxnClientNonInviteConsume(t *testing.T) {
 	})
 }
 
-func TestTxnClientNonInviteComplete(t *testing.T) {
+func TestClientNonInviteComplete(t *testing.T) {
 	t.Run("with unreliable transport starts timer K", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T4 = 2 * time.Millisecond
 		txn.state.Store(Proceeding)
 		txn.Consume(&mockMsg{code: 200})
@@ -128,7 +128,7 @@ func TestTxnClientNonInviteComplete(t *testing.T) {
 
 	t.Run("with reliable transport switch to terminated", func(t *testing.T) {
 		endpoint, transp, msg, _ := createMock()
-		txn := createClientNonInvTxn(transp, endpoint, msg)
+		txn := createClientNonInvite(transp, endpoint, msg)
 		transp.isReliable = true
 		txn.state.Store(Proceeding)
 		txn.Consume(&mockMsg{code: 200})

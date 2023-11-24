@@ -1,4 +1,4 @@
-package transac
+package transaction
 
 import (
 	"testing"
@@ -11,8 +11,8 @@ func TestTxnLayerClient(t *testing.T) {
 		method   string
 		wantType any
 	}{
-		`invite txn`:     {"INVITE", &TxnClientInvite{}},
-		`non-invite txn`: {"PUBLISH", &TxnClientNonInvite{}},
+		`invite txn`:     {"INVITE", &ClientInvite{}},
+		`non-invite txn`: {"PUBLISH", &ClientNonInvite{}},
 	}
 
 	for name, tc := range tests {

@@ -1,50 +1,51 @@
-package transac
+package transaction
 
 import (
+	"gosip/pkg/logger"
+	"gosip/pkg/sip"
 	"net/netip"
 	"time"
 )
 
-type TxnClientNonInvite struct {
-	TxnBasic
+type ClientNonInvite struct {
+	Basic
 }
 
-func createClientNonInvTxn(transp Transport, endpoint EndPoint, msg Message) *TxnClientNonInvite {
-	return &TxnClientNonInvite{
-		TxnBasic: initBasicTxn(transp, endpoint, msg),
+func createClientNonInvite(transp sip.Transport, endpoint EndPoint, msg sip.Message) *ClientNonInvite {
+	return &ClientNonInvite{
+		Basic: initBasicTxn(transp, endpoint, msg),
 	}
 }
 
-func (txn *TxnClientNonInvite) Init(msg Message, addr netip.AddrPort) {
+func (txn *ClientNonInvite) Init(msg sip.Message, addr netip.AddrPort) {
 	txn.addr = addr
 	txn.trying(msg)
 	txn.fireTimerF(msg)
 }
 
-func (txn *TxnClientNonInvite) Consume(msg Message) {
+func (txn *ClientNonInvite) Consume(msg sip.Message) {
 	if !msg.IsResponse() {
 		return
 	}
 
 	code := msg.ResponseCode()
+	logger.Log("client non invite txn consume response %d", code)
 
 	switch txn.state.Load() {
 	case Trying, Proceeding:
 		if code >= 100 && code <= 199 {
 			txn.state.Store(Proceeding)
-		} else if code >= 200 && code <= 699 {
-			txn.complete()
 		} else {
-			// TODO log invalid code
+			txn.complete()
 		}
 	case Completed:
-		// TODO log absorbing response retransmissions
+		logger.Log("absorbing response %d retransmission", code)
 	default:
-		// TODO log unknown state
+		logger.Err("unknown state %d", txn.state.Load())
 	}
 }
 
-func (txn *TxnClientNonInvite) trying(msg Message) {
+func (txn *ClientNonInvite) trying(msg sip.Message) {
 	txn.state.Store(Trying)
 	txn.Send(msg)
 
@@ -54,7 +55,7 @@ func (txn *TxnClientNonInvite) trying(msg Message) {
 	txn.fireTimerE(msg)
 }
 
-func (txn *TxnClientNonInvite) complete() {
+func (txn *ClientNonInvite) complete() {
 	txn.state.Store(Completed)
 
 	if txn.transp.IsReliable() {
@@ -65,7 +66,7 @@ func (txn *TxnClientNonInvite) complete() {
 	txn.fireTimerK()
 }
 
-func (txn *TxnClientNonInvite) fireTimerE(msg Message) {
+func (txn *ClientNonInvite) fireTimerE(msg sip.Message) {
 	go func() {
 		tick := tickTimerE(txn.timer.T1, txn.timer.T2)
 		timer := time.NewTimer(0)
@@ -96,7 +97,7 @@ func tickTimerE(t1, t2 time.Duration) func(uint32) time.Duration {
 	}
 }
 
-func (txn *TxnClientNonInvite) fireTimerF(msg Message) {
+func (txn *ClientNonInvite) fireTimerF(msg sip.Message) {
 	go func() {
 		select {
 		case <-time.After(txn.timer.T1 * 64):
@@ -111,7 +112,7 @@ func (txn *TxnClientNonInvite) fireTimerF(msg Message) {
 }
 
 // just buffer any additional response retransmissions
-func (txn *TxnClientNonInvite) fireTimerK() {
+func (txn *ClientNonInvite) fireTimerK() {
 	go func() {
 		select {
 		case <-time.After(txn.timer.T4):

@@ -1,7 +1,8 @@
-package transac
+package transaction
 
 import (
 	"errors"
+	"gosip/pkg/sip"
 	"net/netip"
 	"sync/atomic"
 	"time"
@@ -20,27 +21,14 @@ var (
 	ErrTimeout = errors.New("SIP Timeout")
 )
 
-type Message interface {
-	Ack() Message
-	IsResponse() bool
-	TopViaBranch() string
-	Method() string
-	ResponseCode() int
-}
-
-type Transport interface {
-	Send(addr netip.AddrPort, msg Message) error
-	IsReliable() bool
-}
-
 type EndPoint interface {
-	TUConsume(msg Message)
-	Error(err error, msg Message)
+	TUConsume(msg sip.Message)
+	Error(err error, msg sip.Message)
 	TxnDestroy(ID string)
 }
 
-type TxnBasic struct {
-	transp   Transport
+type Basic struct {
+	transp   sip.Transport
 	endpoint EndPoint
 	branch   string
 	method   string
@@ -66,10 +54,10 @@ func initTimer() Timer {
 	}
 }
 
-func initBasicTxn(transp Transport, endpoint EndPoint, msg Message) TxnBasic {
+func initBasicTxn(transp sip.Transport, endpoint EndPoint, msg sip.Message) Basic {
 	state := new(atomic.Uint32)
 	state.Store(Unknown)
-	return TxnBasic{
+	return Basic{
 		transp:   transp,
 		endpoint: endpoint,
 		method:   msg.Method(),
@@ -80,11 +68,11 @@ func initBasicTxn(transp Transport, endpoint EndPoint, msg Message) TxnBasic {
 	}
 }
 
-func (txn TxnBasic) ID() string {
+func (txn Basic) ID() string {
 	return txn.branch
 }
 
-func (txn TxnBasic) Send(msg Message) {
+func (txn Basic) Send(msg sip.Message) {
 	err := txn.transp.Send(txn.addr, msg)
 	if err != nil {
 		txn.state.Store(Terminated)
@@ -92,7 +80,7 @@ func (txn TxnBasic) Send(msg Message) {
 	}
 }
 
-func (txn TxnBasic) terminate() {
+func (txn Basic) terminate() {
 	// channel halt is only to be closed and not supposed to receive anything
 	select {
 	case <-txn.halt:
@@ -105,32 +93,32 @@ func (txn TxnBasic) terminate() {
 }
 
 type Transaction interface {
-	Consume(msg Message)
+	Consume(msg sip.Message)
 	ID() string
-	Init(msg Message, addr netip.AddrPort)
+	Init(msg sip.Message, addr netip.AddrPort)
 }
 
 type pool map[string]Transaction
 
-type TxnLayer struct {
+type Layer struct {
 	pool pool
 }
 
 // EndPoint is actually an interface to TU
-func New(endpoint EndPoint) *TxnLayer {
-	return &TxnLayer{
+func New(endpoint EndPoint) *Layer {
+	return &Layer{
 		pool: make(pool),
 	}
 }
 
 // client transaction create
 // used by TU to start new transaction
-func (txl *TxnLayer) Client(msg Message, transp Transport, addr netip.AddrPort) {
+func (txl *Layer) Client(msg sip.Message, transp sip.Transport, addr netip.AddrPort) {
 	var txn Transaction
 	if msg.Method() == "INVITE" {
-		txn = createClientInvTxn(transp, txl, msg)
+		txn = createClientInvite(transp, txl, msg)
 	} else {
-		txn = createClientNonInvTxn(transp, txl, msg)
+		txn = createClientNonInvite(transp, txl, msg)
 	}
 
 	txn.Init(msg, addr)
@@ -140,7 +128,7 @@ func (txl *TxnLayer) Client(msg Message, transp Transport, addr netip.AddrPort) 
 
 // consume new message from transport
 // match existing or create new Server transaction
-func (txl *TxnLayer) Consume(msg Message, transp Transport, addr netip.AddrPort) {
+func (txl *Layer) Consume(msg sip.Message, transp sip.Transport, addr netip.AddrPort) {
 	if txn, exists := txl.pool[msg.TopViaBranch()]; exists {
 		txn.Consume(msg)
 	} else {
@@ -148,18 +136,18 @@ func (txl *TxnLayer) Consume(msg Message, transp Transport, addr netip.AddrPort)
 	}
 }
 
-func (txl *TxnLayer) TxnDestroy(txnID string) {
+func (txl *Layer) TxnDestroy(txnID string) {
 	delete(txl.pool, txnID)
 }
 
-func (txl *TxnLayer) TUConsume(msg Message) {
+func (txl *Layer) TUConsume(msg sip.Message) {
 	// TODO send to chan msg
 }
 
-func (txl *TxnLayer) Error(err error, msg Message) {
+func (txl *Layer) Error(err error, msg sip.Message) {
 	// TODO send err to upstream chan
 }
 
-func (txl *TxnLayer) push(txn Transaction) {
+func (txl *Layer) push(txn Transaction) {
 	txl.pool[txn.ID()] = txn
 }

@@ -1,7 +1,8 @@
-package transac
+package transaction
 
 import (
 	"errors"
+	"gosip/pkg/sip"
 	"net/netip"
 	"sync"
 )
@@ -12,7 +13,7 @@ type mockMsg struct {
 	branch string
 }
 
-func (m *mockMsg) Ack() Message {
+func (m *mockMsg) Ack() sip.Message {
 	return &mockMsg{method: "ACK", branch: m.branch}
 }
 func (m *mockMsg) IsResponse() bool     { return m.code >= 100 }
@@ -23,12 +24,12 @@ func (m *mockMsg) ResponseCode() int    { return m.code }
 type mockTransp struct {
 	isReliable bool
 	addr       netip.AddrPort
-	msg        []Message
+	msg        []sip.Message
 	mu         sync.Mutex
 	senderr    error
 }
 
-func (t *mockTransp) Send(addr netip.AddrPort, msg Message) error {
+func (t *mockTransp) Send(addr netip.AddrPort, msg sip.Message) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.addr = addr
@@ -44,18 +45,18 @@ func (t *mockTransp) msgLen() int {
 
 type mockEndPoint struct {
 	mu        sync.Mutex
-	msg       []Message
+	msg       []sip.Message
 	tout      bool
 	destroyID string
 	err       error
 }
 
-func (e *mockEndPoint) TUConsume(msg Message) {
+func (e *mockEndPoint) TUConsume(msg sip.Message) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.msg = append(e.msg, msg)
 }
-func (e *mockEndPoint) Error(err error, msg Message) {
+func (e *mockEndPoint) Error(err error, msg sip.Message) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.err = err
@@ -73,8 +74,8 @@ func (e *mockEndPoint) msgLen() int {
 }
 
 func createMock() (*mockEndPoint, *mockTransp, *mockMsg, netip.AddrPort) {
-	ep := &mockEndPoint{msg: make([]Message, 0)}
-	tr := &mockTransp{msg: make([]Message, 0)}
+	ep := &mockEndPoint{msg: make([]sip.Message, 0)}
+	tr := &mockTransp{msg: make([]sip.Message, 0)}
 	msg := &mockMsg{method: "INVITE", branch: "z9hG4bK-f00"}
 	addr, _ := netip.ParseAddrPort("127.0.0.1:5670")
 	return ep, tr, msg, addr
