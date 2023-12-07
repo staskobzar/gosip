@@ -15,4 +15,5 @@ type Message interface {
 	TopViaBranch() string
 	Method() string
 	ResponseCode() int
+	Byte() []byte
 }
