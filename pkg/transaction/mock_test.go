@@ -20,6 +20,7 @@ func (m *mockMsg) IsResponse() bool     { return m.code >= 100 }
 func (m *mockMsg) TopViaBranch() string { return m.branch }
 func (m *mockMsg) Method() string       { return m.method }
 func (m *mockMsg) ResponseCode() int    { return m.code }
+func (m *mockMsg) Byte() []byte         { return []byte(m.method) }
 
 type mockTransp struct {
 	isReliable bool

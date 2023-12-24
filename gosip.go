@@ -12,7 +12,7 @@ type UA struct {
 
 type Transp interface{}
 
-func main() {
+func mainBLOCK() {
 
 	ua := BuildUA().
 		WithTransport(&UDP{}, "0.0.0.0:5060").

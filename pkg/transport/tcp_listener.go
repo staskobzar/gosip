@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gosip/pkg/logger"
 	"net"
+	"time"
 )
 
 type TCPListener struct {
@@ -12,39 +13,56 @@ type TCPListener struct {
 	ln    *net.TCPListener
 }
 
-func (tcpln *TCPListener) listen() error {
+func (tcpln *TCPListener) listen(ctx context.Context) error {
 	ln, err := net.ListenTCP("tcp", tcpln.laddr)
 	if err != nil {
-		return fmt.Errorf("%w: failed to start on %q: %s",
-			ErrTCPListener, tcpln.laddr, err)
+		return err
 	}
 
-	logger.Log("starting TCP listener on %q", tcpln.laddr)
-	tcpln.ln = ln
+	logger.Log("start TCP listener on %q", tcpln.laddr)
 
-	return nil
+	tcpln.ln = ln
+	return ctx.Err()
 }
 
-func (tcpln *TCPListener) recv(ctx context.Context, rcv chan<- Packet) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("listener %q recv interrupted by context",
-				tcpln.laddr)
-		default:
-			conn, err := tcpln.ln.AcceptTCP()
+func (tcpln *TCPListener) accept(ctx context.Context) (<-chan Conn, <-chan error) {
+	connCh := make(chan Conn, 32)
+	errCh := make(chan error)
+
+	go func() {
+		for {
+			tcpconn, err := tcpln.ln.AcceptTCP()
 			if err != nil {
-				return fmt.Errorf("accept on %q: %s", tcpln.laddr, err)
+				errCh <- fmt.Errorf("failed to accept connection for %q: %s", tcpln.laddr, err)
+				break
 			}
-			fmt.Printf("%#v\n", conn)
+
+			if ctx.Err() != nil {
+				logger.Wrn("accept routine %q is terminated by context: %s",
+					tcpln.laddr, ctx.Err())
+				break
+			}
+
+			select {
+			case connCh <- &TCP{conn: tcpconn}:
+				logger.Log("new tcp connection accepted from %q", tcpconn.RemoteAddr())
+			case <-time.After(time.Millisecond * 100):
+				logger.Err("failed to send connection for %q on blocked channel", tcpln.laddr)
+			}
 		}
-	}
+		close(connCh)
+		close(errCh)
+	}()
+	return connCh, errCh
+}
+
+func (tcpln *TCPListener) key() string {
+	return sockName(tcpln.laddr)
 }
 
 func (tcpln *TCPListener) close() {
-	tcpln.ln.Close()
-}
-
-func (tcpln *TCPListener) id() sID {
-	return sIDBuild(tcpln.laddr)
+	logger.Wrn("closing listener %q", tcpln.laddr)
+	if err := tcpln.ln.Close(); err != nil {
+		logger.Err("failed to close TCP listener %q: %s", tcpln.laddr, err)
+	}
 }

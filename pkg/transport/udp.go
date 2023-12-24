@@ -2,7 +2,6 @@ package transport
 
 import (
 	"context"
-	"fmt"
 	"gosip/pkg/logger"
 	"net"
 )
@@ -12,53 +11,60 @@ type UDP struct {
 	conn  *net.UDPConn
 }
 
-func (udp *UDP) Write(raddr net.Addr, payload []byte) error {
-	n, err := udp.conn.WriteTo(payload, raddr)
+func (udp *UDP) listen(ctx context.Context) error {
+	conn, err := net.ListenUDP("udp", udp.laddr)
 	if err != nil {
 		return err
 	}
-	logger.Log("sent %d bytes to %s", n, raddr)
-	return nil
-}
 
-func (udp *UDP) listen() error {
-	conn, err := net.ListenUDP("udp", udp.laddr)
-	if err != nil {
-		return fmt.Errorf("%w: failed to start on %q: %s",
-			ErrUDPListener, udp.laddr, err)
-	}
-
-	logger.Log("starting UDP listener on %q", udp.laddr)
+	logger.Log("start UDP listener on %q", udp.laddr)
 
 	udp.conn = conn
-	return nil
+	return ctx.Err()
 }
 
-func (udp *UDP) recv(ctx context.Context, rcv chan<- Packet) error {
-	buf := make([]byte, 1<<16)
+func (udp *UDP) accept(_ context.Context) (<-chan Conn, <-chan error) {
+	chConn, chErr := make(chan Conn), make(chan error)
+	go func() {
+		chConn <- udp
+	}()
+	return chConn, chErr
+}
 
+func (udp *UDP) consume(ctx context.Context, rcv chan<- Packet, _ *Store[Conn]) {
+	buf := make([]byte, 1<<12)
+	name := udp.key()
 	for {
+		if ctx.Err() != nil {
+			logger.Wrn("connection %q is terminated by context", name)
+			break
+		}
+
 		n, raddr, err := udp.conn.ReadFrom(buf)
 		if err != nil {
-			return fmt.Errorf("%w: failed read from %q: %s",
-				ErrUDPListener, udp.conn.LocalAddr(), err)
+			logger.Err("failed to read conn %q from %q: %s", name, raddr, err)
+			break
 		}
+
 		payload := make([]byte, n)
 		copy(payload, buf[:n])
-		logger.Log("udp read %d bytes from %q", n, raddr)
 		pack := Packet{
-			Payload: buf[:n],
-			Laddr:   udp.conn.LocalAddr(),
+			Payload: payload,
+			Laddr:   udp.laddr,
 			Raddr:   raddr,
 		}
-		consume(rcv, pack)
+
+		rcvPacket(rcv, pack, name)
 	}
+}
+
+func (udp *UDP) key() string {
+	return sockName(udp.laddr)
 }
 
 func (udp *UDP) close() {
-	udp.conn.Close()
-}
-
-func (udp *UDP) id() sID {
-	return sIDBuild(udp.laddr)
+	logger.Wrn("closing listener %q", udp.laddr)
+	if err := udp.conn.Close(); err != nil {
+		logger.Err("failed to close TCP listener %q: %s", udp.laddr, err)
+	}
 }

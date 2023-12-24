@@ -7,6 +7,7 @@ import (
 	"gosip/pkg/sip"
 	"gosip/pkg/transport"
 	"log"
+	"time"
 )
 
 type message struct {
@@ -25,26 +26,28 @@ func main() {
 
 	logger.Enable(true)
 
-	mgm := transport.InitManager()
+	mgr := transport.Init()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	if err := mgm.ListenUDP(ctx, "127.0.0.1:5060"); err != nil {
+	if err := mgr.ListenTCP(ctx, "127.0.0.1:5060"); err != nil {
 		log.Fatal(err)
 	}
 
-	// select {
-	// case pack := <-mgm.Recv():
-	for pack := range mgm.Recv() {
-		fmt.Printf("%#v\n", mgm)
-		fmt.Printf("%#v\n", pack)
+	if err := mgr.ListenUDP(ctx, "127.0.0.1:5060"); err != nil {
+		log.Fatal(err)
+	}
+
+	for pack := range mgr.Recv() {
+		logger.Log("[<] rcv: from %q to %q msg %q\n", pack.Raddr, pack.Laddr, pack.Payload)
 		msg := &message{
 			b: append([]byte("recv: "), pack.Payload...),
 		}
-		mgm.Send(pack.Laddr, pack.Raddr, msg)
-		msg.b = append([]byte("any: "), msg.b...)
-		mgm.Send(nil, pack.Raddr, msg)
+		<-time.After(time.Millisecond * 2)
+		if err := mgr.Send(pack.Laddr, pack.Raddr, msg); err != nil {
+			logger.Err(err.Error())
+		}
+		// msg.b = append([]byte("any: "), msg.b...)
+		// mgr.Send(nil, pack.Raddr, msg)
 	}
-	// <-time.After(time.Second)
-	// log.Println("========== end ==========")
 }
