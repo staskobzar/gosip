@@ -46,15 +46,7 @@ func (udp *UDP) consume(ctx context.Context, rcv chan<- Packet, _ *Store[Conn]) 
 			break
 		}
 
-		payload := make([]byte, n)
-		copy(payload, buf[:n])
-		pack := Packet{
-			Payload: payload,
-			Laddr:   udp.laddr,
-			Raddr:   raddr,
-		}
-
-		rcvPacket(rcv, pack, name)
+		rcvPacket(rcv, buf[:n], udp.laddr, raddr)
 	}
 }
 

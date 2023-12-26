@@ -40,10 +40,10 @@ func main() {
 
 	for pack := range mgr.Recv() {
 		logger.Log("[<] rcv: from %q to %q msg %q\n", pack.Raddr, pack.Laddr, pack.Payload)
+		<-time.After(time.Millisecond * 1)
 		msg := &message{
 			b: append([]byte("recv: "), pack.Payload...),
 		}
-		<-time.After(time.Millisecond * 2)
 		if err := mgr.Send(pack.Laddr, pack.Raddr, msg); err != nil {
 			logger.Err(err.Error())
 		}

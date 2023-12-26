@@ -154,6 +154,25 @@ func (mgr *Manager) listen(ctx context.Context, ln Listener) {
 	}
 }
 
+func rcvPacket(rcv chan<- Packet, buf []byte, laddr, raddr net.Addr) {
+	size := len(buf)
+	payload := make([]byte, size)
+	copy(payload, buf)
+
+	pack := Packet{
+		Payload: payload,
+		Laddr:   laddr,
+		Raddr:   raddr,
+	}
+
+	select {
+	case rcv <- pack:
+		logger.Log("sent pack with payload of %d bytes sock %q remote address %q", size, laddr, raddr)
+	case <-time.After(100 * time.Millisecond):
+		logger.Err("failed to send pack on blocked chan for sock %q remote address %q", laddr, raddr)
+	}
+}
+
 func sockName(addr net.Addr) string {
 	return addr.Network() + ":" + addr.String()
 }
