@@ -1,8 +1,6 @@
 .PHONY: test cov lint clean
 all: test lint
 
-include pkg/sipmsg/package.mk
-
 test:
 	go test -race -cover -timeout=5s ./...
 

@@ -138,6 +138,7 @@ func TestParseURIFail(t *testing.T) {
 }
 
 func BenchmarkParseURI(b *testing.B) {
+	b.ResetTimer()
 	input := "sip:alice:_pa55w0Rd@biloxi.com:5062;method=REGISTER;transport=tcp?to=sip:bob%40biloxi.com&subject=renew"
 	// input := "sips:bob:pa55w0rd@example.com:8080;user=phone?X-t=foo"
 	for i := 0; i < b.N; i++ {

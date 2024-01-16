@@ -8,10 +8,9 @@ import (
 	"fmt"
 )
 
-%% machine uri;
-%% write data;
-
 func ParseURI(data string) (*URI, error) {
+	%% machine uri;
+	%% write data;
 	uri := &URI{}
 	m   := 0 // marker
 	cs  := 0 // current state
