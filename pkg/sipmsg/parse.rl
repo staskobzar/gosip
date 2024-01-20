@@ -5,6 +5,7 @@ package sipmsg
 
 import (
 	"fmt"
+	"strconv"
 )
 
 func Parse(data string) (*Message, error) {
@@ -29,9 +30,9 @@ func Parse(data string) (*Message, error) {
 		action sm1    { m1 = p }
 		action body   { msg.Body = data[m:p] }
 
-		include grammar    "grammar.rl";
-		include first_line "first_line.rl";
-		include headers    "headers.rl";
+		include grammar    "parser/grammar.rl";
+		include first_line "parser/first_line.rl";
+		include headers    "parser/headers.rl";
 
 		body = extend+ >sm %body;
 
@@ -46,8 +47,16 @@ func Parse(data string) (*Message, error) {
 	}
 
 	if p == pe {
-		return nil, fmt.Errorf("%w: unexpected eof: %q", ErrMsgParse, data)
+		return nil, fmt.Errorf("%w: unexpected eof: %s...", ErrMsgParse, data[:p])
 	}
 
-	return nil, fmt.Errorf("%w: error in uri at pos %d: %q>>%q<<", ErrMsgParse, p, data[:p],data[p:])
+	return nil, fmt.Errorf("%w: error in uri at pos %d: %q>>>%q", ErrMsgParse, p, data[:p],data[p:])
+}
+
+// simplified string to number converter for parser
+// not checking convert errors because parser already
+// essures that string is a number
+func atoi(num string) int {
+	n, _ := strconv.Atoi(num)
+	return n
 }

@@ -5,11 +5,13 @@ action hdr_name  { hdrname = data[m:p] }
 action hdr_value { msg.pushHeader(htype, hdrname, data[m:p]) }
 
 action hdr_callid   { msg.CallID = data[m:p]; msg.pushHeader(HCallID, hdrname, data[m:p]) }
-action hdr_clen     { msg.ContentLen = data[m:p] }
-action hdr_ctyp     { msg.ContentType = data[m:p] }
-action hdr_cseq     { msg.CSeq = data[m:p] }
-action hdr_maxfwd   { msg.MaxFwd = data[m:p] }
-action hdr_expires  { msg.Expires = data[m:p] }
+action hdr_maxfwd   { msg.MaxFwd = atoi(data[m:p]); msg.pushHeader(HMaxForwards, hdrname, data[m:p]) }
+action hdr_cseq     { msg.CSeq = atoi(data[m:p]); msg.pushHeader(HCSeq, hdrname, data[m:p]) }
+action hdr_cseq_met {
+  if len(msg.Method) == 0 {
+    msg.Method = data[m:p]
+  }
+}
 
 callid        = word ( "@" word )?;
 generic_value = ( extend+ -- CRLF );
@@ -43,18 +45,21 @@ hdr_cnt_enc   = ("Content-Encoding"i | "e"i) >sm %hdr_name %{htype = HContentEnc
                 HCOLON $(hdr,1) generic_value >sm %hdr_value;
 hdr_cnt_lang  = "Content-Language"i >sm %hdr_name %{htype = HContentLanguage}
                 HCOLON $(hdr,1) generic_value >sm %hdr_value;
-hdr_clen      = ("Content-Length"i | "l"i) HCOLON $(hdr,1) digit+ >sm %hdr_clen;
-hdr_cseq      = "CSeq"i HCOLON $(hdr,1) digit+ >sm %hdr_cseq LWS token;
-hdr_ctyp      = ("Content-Type"i | "c"i) HCOLON $(hdr,1)
-                (token SLASH token (SEMI token SLASH token)*) >sm %hdr_ctyp;
+hdr_clen      = ("Content-Length"i | "l"i) >sm %hdr_name %{htype = HContentLength}
+                HCOLON $(hdr,1) digit+ >sm %hdr_value;
+hdr_cseq      = "CSeq"i >sm %hdr_name HCOLON $(hdr,1)
+                digit+ >sm %hdr_cseq LWS token >sm %hdr_cseq_met;
+hdr_ctyp      = ("Content-Type"i | "c"i) >sm %hdr_name %{htype = HContentType} HCOLON $(hdr,1)
+                (token SLASH token (SEMI token SLASH token)*) >sm %hdr_value;
 hdr_date      = "Date"i >sm %hdr_name %{htype = HDate} HCOLON $(hdr,1)
                 (alnum | [,:] | SP)+ >sm %hdr_value;
 hdr_errinfo   = "Error-Info"i >sm %hdr_name %{htype = HErrorInfo} HCOLON $(hdr,1)
                 generic_value >sm %hdr_value;
-hdr_expires   = "Expires"i HCOLON $(hdr,1) digit+ >sm %hdr_expires;
+hdr_expires   = "Expires"i >sm %hdr_name %{htype = HExpires}
+                HCOLON $(hdr,1) digit+ >sm %hdr_value;
 hdr_inreply   = "In-Reply-To"i >sm %hdr_name %{htype = HInReplyTo} HCOLON $(hdr,1)
                 callid >sm (COMMA callid)* %hdr_value;
-hdr_maxfwd    = "Max-Forwards"i HCOLON $(hdr,1) digit+ >sm %hdr_maxfwd;
+hdr_maxfwd    = "Max-Forwards"i >sm %hdr_name HCOLON $(hdr,1) digit+ >sm %hdr_maxfwd;
 hdr_mimever   = "MIME-Version"i >sm %hdr_name %{htype = HMIMEVersion} HCOLON $(hdr,1)
                 (digit+ "." digit+) >sm %hdr_value;
 hdr_minexpr   = "Min-Expires"i >sm %hdr_name %{htype = HMinExpires} HCOLON $(hdr,1)

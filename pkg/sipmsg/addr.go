@@ -24,7 +24,7 @@ func NewNameAddrSpec(hdrName string) NameAddrSpec {
 		Addr:       &URI{},
 	}
 }
-
+func (naddr *NameAddrSpec) name() string              { return naddr.HeaderName }
 func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = val }
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
@@ -35,14 +35,29 @@ func (naddr *NameAddrSpec) setParam(_, val string)    { naddr.Params = val }
 
 type NameAddr struct {
 	NameAddrSpec
-	Tag string
+	Type HType
+	Tag  string
 }
 
-func NewNameAddr(name string) *NameAddr {
+func NewNameAddr(t HType, name string) *NameAddr {
 	return &NameAddr{
+		Type:         t,
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
 }
+
+func (naddr *NameAddr) String() string {
+	hdr := naddr.HeaderName + ": "
+	if len(naddr.DisplayName) > 0 {
+		hdr += naddr.DisplayName
+	}
+
+	hdr += "<" + naddr.Addr.String() + ">" + naddr.Params
+
+	return hdr
+}
+
+func (naddr *NameAddr) t() HType { return naddr.Type }
 
 // override method from NameAddrSpec
 func (naddr *NameAddr) setParam(name, val string) {
@@ -71,6 +86,17 @@ func NewHeaderContact(name string) *HeaderContact {
 	}
 }
 
+func (cnt *HeaderContact) String() string {
+	hdr := cnt.HeaderName + ": "
+	if len(cnt.DisplayName) > 0 {
+		hdr += cnt.DisplayName
+	}
+
+	hdr += "<" + cnt.Addr.String() + ">" + cnt.Params
+
+	return hdr
+}
+
 // override method from NameAddrSpec
 func (cnt *HeaderContact) setParam(name, val string) {
 	switch name {
@@ -83,13 +109,23 @@ func (cnt *HeaderContact) setParam(name, val string) {
 	}
 }
 
+func (cnt *HeaderContact) t() HType { return HContact }
+
 type Route struct {
+	Type HType
 	NameAddrSpec
 	Next *Route
 }
 
-func NewRoute(name string) *Route {
+func NewRoute(t HType, name string) *Route {
 	return &Route{
+		Type:         t,
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
 }
+
+func (r *Route) String() string {
+	return r.HeaderName + ": "
+}
+
+func (r *Route) t() HType { return r.Type }

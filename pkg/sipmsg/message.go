@@ -1,57 +1,6 @@
 package sipmsg
 
-type HType uint8
-
-// headers' types enum
-const (
-	HGeneric HType = iota
-	HRequest
-	HResponse
-	HAccept
-	HAcceptEncoding
-	HAcceptLanguage
-	HAlertInfo
-	HAllow
-	HAuthenticationInfo
-	HAuthorization
-	HCallID
-	HCallInfo
-	HContact
-	HContentDisposition
-	HContentEncoding
-	HContentLanguage
-	HContentLength
-	HContentType
-	HCSeq
-	HDate
-	HErrorInfo
-	HExpires
-	HFrom
-	HInReplyTo
-	HMaxForwards
-	HMIMEVersion
-	HMinExpires
-	HOrganization
-	HPriority
-	HProxyAuthenticate
-	HProxyAuthorization
-	HProxyRequire
-	HRecordRoute
-	HReplyTo
-	HRequire
-	HRetryAfter
-	HRoute
-	HServer
-	HSubject
-	HSupported
-	HTimestamp
-	HTo
-	HUnsupported
-	HUserAgent
-	HVia
-	HWarning
-	HWWWAuthenticate
-)
+import "strings"
 
 type Message struct {
 	t      HType
@@ -60,18 +9,11 @@ type Message struct {
 	Code   string
 	Reason string
 
-	CallID      string
-	ContentLen  string
-	ContentType string
-	CSeq        string
-	MaxFwd      string
-	Expires     string
-	Via         []*HeaderVia
-	From        *NameAddr
-	To          *NameAddr
-	Contact     []*HeaderContact
-	RecRoute    []*Route
-	Route       []*Route
+	CallID string
+	CSeq   int
+	MaxFwd int
+	From   *NameAddr
+	To     *NameAddr
 
 	Headers Headers
 	Body    string
@@ -79,12 +21,74 @@ type Message struct {
 
 func NewMessage() *Message {
 	return &Message{
-		Headers:  make(Headers, 0, 32),
-		Via:      make([]*HeaderVia, 0, 1),     // at least one Via header expected
-		Contact:  make([]*HeaderContact, 0, 1), // at least one Contact header expected
-		RecRoute: make([]*Route, 0),
-		Route:    make([]*Route, 0),
+		Headers: make(Headers, 0, 32),
 	}
+}
+
+func (msg *Message) IsResponse() bool {
+	return msg.t == HResponse
+}
+
+// HLen returns number of headers in the SIP message
+func (msg *Message) HLen() int {
+	return msg.Headers.Len()
+}
+
+func (msg *Message) Find(t HType) anyHeader {
+	return msg.find(func(h anyHeader) bool { return h.t() == t })
+}
+
+func (msg *Message) FindAll(t HType) Headers {
+	return msg.findAll(func(h anyHeader) bool { return h.t() == t })
+}
+
+func (msg *Message) FindByName(name string) anyHeader {
+	return msg.find(func(h anyHeader) bool { return h.name() == name })
+}
+
+func (msg *Message) FindByNameAll(name string) Headers {
+	return msg.findAll(func(h anyHeader) bool { return h.name() == name })
+}
+
+func (msg *Message) String() string {
+	buf := make([]string, 0, msg.HLen()+1)
+	buf = append(buf, msg.firstLine())
+
+	for _, hdr := range msg.Headers {
+		h := hdr.String()
+		if hdr.t() == HCSeq {
+			h += " " + msg.Method
+		}
+		buf = append(buf, h)
+	}
+
+	return strings.Join(buf, "\r\n") + "\r\n\r\n" + msg.Body
+}
+
+func (msg *Message) firstLine() string {
+	if msg.t == HRequest {
+		return msg.Method + " " + msg.RURI.String() + " SIP/2.0"
+	}
+	return "SIP/2.0" + msg.Code + " " + msg.Reason
+}
+
+func (msg *Message) find(match func(h anyHeader) bool) anyHeader {
+	for _, h := range msg.Headers {
+		if match(h) {
+			return h
+		}
+	}
+	return nil
+}
+
+func (msg *Message) findAll(match func(h anyHeader) bool) Headers {
+	list := make(Headers, 0)
+	for _, h := range msg.Headers {
+		if match(h) {
+			list = append(list, h)
+		}
+	}
+	return list
 }
 
 func (msg *Message) pushHeader(t HType, name, value string) {
@@ -94,30 +98,4 @@ func (msg *Message) pushHeader(t HType, name, value string) {
 		Value: value,
 	}
 	msg.Headers = append(msg.Headers, generic)
-}
-
-type Headers []any
-
-type HeaderGeneric struct {
-	Type  HType
-	Name  string
-	Value string
-}
-
-type HeaderVia struct {
-	Name   string
-	Proto  string
-	Transp string
-	Host   string
-	Port   string
-	Branch string
-	Recvd  string
-	Params string
-	Via    *HeaderVia // linked list for comma separated list of vias in the same header
-}
-
-func NewHeaderVia(name string) *HeaderVia {
-	return &HeaderVia{
-		Name: name,
-	}
 }

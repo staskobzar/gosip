@@ -137,6 +137,28 @@ func TestParseURIFail(t *testing.T) {
 	}
 }
 
+func TestURIString(t *testing.T) {
+	tests := []struct {
+		uri string
+	}{
+		{"sip:atlanta.com"},
+		{"sip:alice@atlanta.com"},
+		{"sips:atlanta.com;transport=TLS;rl"},
+		{"sips:bob@pbx.com;rl?user=Bob"},
+		{"sip:pbx.com?phone=polycom&v=vvx"},
+		{"sip:100@sip.ca:1223;foo=bar"},
+		{"sip:200@10.0.0.1:1223"},
+		{"sip:300@[2001:db8::1:0:0:1:1:208.8.8.101]:5061"},
+		{"sip:300@[2001:db8::1:0:0:1:1];user=bob?phone=yealink"},
+	}
+
+	for _, tc := range tests {
+		uri, err := ParseURI(tc.uri)
+		assert.Nil(t, err)
+		assert.Equal(t, tc.uri, uri.String())
+	}
+}
+
 func BenchmarkParseURI(b *testing.B) {
 	b.ResetTimer()
 	input := "sip:alice:_pa55w0Rd@biloxi.com:5062;method=REGISTER;transport=tcp?to=sip:bob%40biloxi.com&subject=renew"

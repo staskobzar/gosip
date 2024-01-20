@@ -26,7 +26,7 @@ func ParseURI(data string) (*URI, error) {
 		action params   { uri.Params   = data[m:p] }
 		action headers  { uri.Headers  = data[m:p] }
 
-		include grammar "grammar.rl";
+		include grammar "parser/grammar.rl";
 
 		main := scheme %scheme ":" ( userinfo >sm %userinfo "@" )?
 		        hostport >sm %hostport ( ";" uri_params >sm %params )?

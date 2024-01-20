@@ -3,7 +3,7 @@ machine headers_via;
 
 action hdr_via_new {
     via = NewHeaderVia(data[m:p])
-    msg.Via = append(msg.Via, via)
+	msg.Headers = append(msg.Headers, via)
 }
 
 action hdr_via_link {

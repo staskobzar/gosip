@@ -4,17 +4,25 @@
 machine headers_addr;
 
 action hdr_from_init {
-    msg.From = NewNameAddr(data[m:p])
+    if msg.From != nil {
+       return nil,fmt.Errorf("%w: more then one From headers found", ErrMsgParse)
+    }
+    msg.From = NewNameAddr(HFrom, data[m:p])
+	msg.Headers = append(msg.Headers, msg.From)
     naddr = msg.From
 }
 action hdr_to_init {
-    msg.To = NewNameAddr(data[m:p])
+    if msg.To != nil {
+       return nil,fmt.Errorf("%w: more then one To headers found", ErrMsgParse)
+    }
+    msg.To = NewNameAddr(HTo, data[m:p])
+	msg.Headers = append(msg.Headers, msg.To)
     naddr = msg.To
 }
 action hdr_cnt_init {
     cnt = NewHeaderContact(data[m:p])
     naddr = cnt
-    msg.Contact = append(msg.Contact, cnt)
+	msg.Headers = append(msg.Headers, cnt)
 }
 action hdr_cnt_link {
     cnt.Next = NewHeaderContact("")
@@ -22,17 +30,17 @@ action hdr_cnt_link {
     naddr = cnt
 }
 action hdr_rroute_init {
-    route = NewRoute(data[m:p])
-    msg.RecRoute = append(msg.RecRoute, route)
+    route = NewRoute(HRecordRoute,data[m:p])
     naddr = route
+	msg.Headers = append(msg.Headers, route)
 }
 action hdr_route_init {
-    route = NewRoute(data[m:p])
-    msg.Route = append(msg.Route, route)
+    route = NewRoute(HRoute,data[m:p])
     naddr = route
+	msg.Headers = append(msg.Headers, route)
 }
 action hdr_route_link {
-    route.Next = NewRoute("")
+    route.Next = NewRoute(route.Type, "")
     route = route.Next
     naddr = route
 }
