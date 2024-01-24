@@ -1,5 +1,7 @@
 package sipmsg
 
+import "strings"
+
 // parser helper interface
 type nameAddr interface {
 	setDisplayName(string)
@@ -11,6 +13,7 @@ type nameAddr interface {
 	setParam(string, string)
 }
 
+// NameAddrSpec is a base structure for other Name-Addr structures
 type NameAddrSpec struct {
 	HeaderName  string
 	DisplayName string
@@ -18,14 +21,15 @@ type NameAddrSpec struct {
 	Params      string
 }
 
-func NewNameAddrSpec(hdrName string) NameAddrSpec {
+// NewNameAddrSpec creates new NameAddrSpec
+func NewNameAddrSpec(name string) NameAddrSpec {
 	return NameAddrSpec{
-		HeaderName: hdrName,
+		HeaderName: name,
 		Addr:       &URI{},
 	}
 }
 func (naddr *NameAddrSpec) name() string              { return naddr.HeaderName }
-func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = val }
+func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = strings.TrimSpace(val) }
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
 func (naddr *NameAddrSpec) setURIHostport(val string) { naddr.Addr.Hostport = val }
@@ -33,12 +37,15 @@ func (naddr *NameAddrSpec) setURIParams(val string)   { naddr.Addr.Params = val 
 func (naddr *NameAddrSpec) setURIHeaders(val string)  { naddr.Addr.Headers = val }
 func (naddr *NameAddrSpec) setParam(_, val string)    { naddr.Params = val }
 
+// NameAddr headers From and To
 type NameAddr struct {
 	NameAddrSpec
 	Type HType
 	Tag  string
 }
 
+// NewNameAddr creates new NameAddr header
+// t must be HFrom or HTo
 func NewNameAddr(t HType, name string) *NameAddr {
 	return &NameAddr{
 		Type:         t,
@@ -46,10 +53,12 @@ func NewNameAddr(t HType, name string) *NameAddr {
 	}
 }
 
+// String represents NameAddr header as string
+// @impl anyHeader interface
 func (naddr *NameAddr) String() string {
 	hdr := naddr.HeaderName + ": "
 	if len(naddr.DisplayName) > 0 {
-		hdr += naddr.DisplayName
+		hdr += naddr.DisplayName + " "
 	}
 
 	hdr += "<" + naddr.Addr.String() + ">" + naddr.Params
@@ -57,6 +66,7 @@ func (naddr *NameAddr) String() string {
 	return hdr
 }
 
+// @impl anyHeader interface
 func (naddr *NameAddr) t() HType { return naddr.Type }
 
 // override method from NameAddrSpec
@@ -80,20 +90,34 @@ type HeaderContact struct {
 	Next    *HeaderContact
 }
 
+// NewHeaderContact creates HeaderContact
 func NewHeaderContact(name string) *HeaderContact {
 	return &HeaderContact{
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
 }
 
+// String represents HeaderContact header as string
+// @impl anyHeader interface
 func (cnt *HeaderContact) String() string {
-	hdr := cnt.HeaderName + ": "
+	var hdr string
+	if len(cnt.HeaderName) > 0 {
+		hdr = cnt.HeaderName + ": "
+	}
+
+	if cnt.Params == "*" {
+		return hdr + "*"
+	}
+
 	if len(cnt.DisplayName) > 0 {
-		hdr += cnt.DisplayName
+		hdr += cnt.DisplayName + " "
 	}
 
 	hdr += "<" + cnt.Addr.String() + ">" + cnt.Params
 
+	if cnt.Next != nil {
+		hdr += "," + cnt.Next.String()
+	}
 	return hdr
 }
 
@@ -109,14 +133,18 @@ func (cnt *HeaderContact) setParam(name, val string) {
 	}
 }
 
+// @impl anyHeader interface
 func (cnt *HeaderContact) t() HType { return HContact }
 
+// Route structure that represence Route or Record-Route headers
 type Route struct {
 	Type HType
 	NameAddrSpec
 	Next *Route
 }
 
+// NewRoute creates new Route header
+// parameter "t" must be HRoute or HRecordRoute
 func NewRoute(t HType, name string) *Route {
 	return &Route{
 		Type:         t,
@@ -124,8 +152,26 @@ func NewRoute(t HType, name string) *Route {
 	}
 }
 
+// String represents Route header as string
+// @impl anyHeader interface
 func (r *Route) String() string {
-	return r.HeaderName + ": "
+	var hdr string
+	if len(r.HeaderName) > 0 {
+		hdr = r.HeaderName + ": "
+	}
+
+	// NOTE: ANBF from RFC3261 provides display name
+	// and parameters but I have not seen it match in real life
+	if len(r.DisplayName) > 0 {
+		hdr += r.DisplayName
+	}
+	hdr += "<" + r.Addr.String() + ">" + r.Params
+
+	if r.Next != nil {
+		hdr += "," + r.Next.String()
+	}
+	return hdr
 }
 
+// @impl anyHeader interface
 func (r *Route) t() HType { return r.Type }

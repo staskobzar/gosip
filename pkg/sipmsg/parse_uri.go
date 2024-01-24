@@ -17,7 +17,8 @@ func ParseURI(data string) (*URI, error) {
 //line parse_uri.go:18
 var _uri_actions []byte = []byte{
 	0, 1, 0, 1, 1, 1, 2, 1, 3, 
-	1, 4, 1, 5, 
+	1, 4, 1, 5, 1, 6, 2, 1, 
+	0, 
 }
 
 var _uri_key_offsets []int16 = []int16{
@@ -476,8 +477,8 @@ var _uri_trans_targs []byte = []byte{
 }
 
 var _uri_trans_actions []byte = []byte{
-	0, 0, 0, 0, 3, 0, 1, 1, 
-	1, 1, 1, 0, 0, 0, 5, 0, 
+	0, 0, 0, 0, 5, 0, 3, 3, 
+	15, 15, 1, 0, 0, 0, 7, 0, 
 	0, 0, 1, 1, 0, 0, 0, 0, 
 	0, 0, 0, 0, 1, 1, 0, 0, 
 	0, 0, 0, 0, 1, 1, 0, 0, 
@@ -492,10 +493,10 @@ var _uri_trans_actions []byte = []byte{
 	0, 0, 0, 0, 0, 0, 1, 1, 
 	1, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 7, 
-	7, 0, 0, 0, 0, 0, 0, 9, 
-	0, 0, 0, 0, 0, 0, 7, 7, 
-	0, 0, 0, 0, 0, 0, 9, 0, 
+	0, 0, 0, 0, 0, 0, 0, 9, 
+	9, 0, 0, 0, 0, 0, 0, 11, 
+	0, 0, 0, 0, 0, 0, 9, 9, 
+	0, 0, 0, 0, 0, 0, 11, 0, 
 	0, 0, 0, 0, 0, 0, 0, 
 }
 
@@ -515,10 +516,10 @@ var _uri_eof_actions []byte = []byte{
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 7, 7, 7, 7, 7, 7, 
-	7, 9, 9, 11, 7, 7, 7, 7, 
-	7, 7, 7, 7, 7, 7, 7, 9, 
-	9, 9, 9, 11, 11, 7, 7, 7, 
+	0, 0, 9, 9, 9, 9, 9, 9, 
+	9, 11, 11, 13, 9, 9, 9, 9, 
+	9, 9, 9, 9, 9, 9, 9, 11, 
+	11, 11, 11, 13, 13, 9, 9, 9, 
 }
 
 const uri_start int = 1
@@ -531,24 +532,25 @@ const uri_en_main int = 1
 //line parse_uri.rl:14
 	uri := &URI{}
 	m   := 0 // marker
+	m1  := 0 // additional marker
 	cs  := 0 // current state
 	p   := 0 // data pointer
 	pe  := len(data) // data end pointer
 	eof := len(data)
 
 	
-//line parse_uri.rl:34
+//line parse_uri.rl:39
 
 
 	
-//line parse_uri.go:545
+//line parse_uri.go:547
 	{
 	cs = uri_start
 	}
 
-//line parse_uri.rl:37
+//line parse_uri.rl:42
 	
-//line parse_uri.go:552
+//line parse_uri.go:554
 	{
 	var _klen int
 	var _trans int
@@ -628,21 +630,24 @@ _match:
 		_acts++
 		switch _uri_actions[_acts-1] {
 		case 0:
-//line parse_uri.rl:22
+//line parse_uri.rl:23
  m = p 
 		case 1:
-//line parse_uri.rl:23
- uri.Scheme   = data[:p] 
-		case 2:
 //line parse_uri.rl:24
- uri.Userinfo = data[m:p] 
-		case 3:
+ m1 = p 
+		case 2:
 //line parse_uri.rl:25
- uri.Hostport = data[m:p] 
-		case 4:
+ uri.Scheme   = data[:p] 
+		case 3:
 //line parse_uri.rl:26
+ uri.Userinfo = data[m1:p] 
+		case 4:
+//line parse_uri.rl:27
+ uri.Hostport = data[m:p] 
+		case 5:
+//line parse_uri.rl:28
  uri.Params   = data[m:p] 
-//line parse_uri.go:646
+//line parse_uri.go:651
 		}
 	}
 
@@ -661,16 +666,16 @@ _again:
 		for ; __nacts > 0; __nacts-- {
 			__acts++
 			switch _uri_actions[__acts-1] {
-			case 3:
-//line parse_uri.rl:25
- uri.Hostport = data[m:p] 
 			case 4:
-//line parse_uri.rl:26
- uri.Params   = data[m:p] 
-			case 5:
 //line parse_uri.rl:27
+ uri.Hostport = data[m:p] 
+			case 5:
+//line parse_uri.rl:28
+ uri.Params   = data[m:p] 
+			case 6:
+//line parse_uri.rl:29
  uri.Headers  = data[m:p] 
-//line parse_uri.go:674
+//line parse_uri.go:679
 			}
 		}
 	}
@@ -678,7 +683,7 @@ _again:
 	_out: {}
 	}
 
-//line parse_uri.rl:38
+//line parse_uri.rl:43
 
 	if cs >= uri_first_final {
 		return uri, nil

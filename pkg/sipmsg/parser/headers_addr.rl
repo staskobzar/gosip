@@ -74,11 +74,10 @@ cnt_prm_q      = "q"i EQUAL qvalue >sm %hdr_cnt_q;
 
 contact_prms   = cnt_prm_q | cnt_prm_expr | generic_param;
 hdr_cnt_prm    = name_addr_spec %sm1 (SEMI contact_prms)* %hdr_naddr_prms;
-hdr_cnts_list  = hdr_cnt_prm (COMMA %hdr_cnt_link hdr_cnt_prm)*;
+hdr_cnts_list  = hdr_cnt_prm (SWS "," %hdr_cnt_link SWS hdr_cnt_prm)*;
 contact_value  = STAR %contact_star | hdr_cnts_list;
 
 route_prm      = name_addr %sm1 (SEMI generic_param)* %hdr_naddr_prms;
-
 # headers machines
 hdr_from    = ("From"i | "f"i) >sm %hdr_from_init HCOLON $(hdr,1) name_addr_spec %sm1
               (SEMI name_addr_prm)* %hdr_naddr_prms;
@@ -88,7 +87,7 @@ hdr_to      = ("To"i | "t"i) >sm %hdr_to_init HCOLON $(hdr,1) name_addr_spec %sm
 
 hdr_contact = ("Contact"i | "m"i) >sm %hdr_cnt_init HCOLON $(hdr,1) contact_value;
 
-hdr_rroute  = "Record-Route"i >sm %hdr_rroute_init HCOLON $(hdr,1) route_prm (COMMA %hdr_route_link route_prm)*;
+hdr_rroute  = "Record-Route"i >sm %hdr_rroute_init HCOLON $(hdr,1) route_prm (SWS "," %hdr_route_link SWS route_prm)*;
 
-hdr_route   = "Route"i >sm %hdr_route_init HCOLON $(hdr,1) route_prm (COMMA %hdr_route_link route_prm)*;
+hdr_route   = "Route"i >sm %hdr_route_init HCOLON $(hdr,1) route_prm (SWS "," %hdr_route_link SWS route_prm)*;
 }%%

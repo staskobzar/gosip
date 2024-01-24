@@ -16,5 +16,6 @@ bench:
 
 cov:
 	ragel -Z -T0 -o parse_uri.go parse_uri.rl
-	go test -coverpkg=./... -coverprofile=coverage.out ./...
+	# go test -coverpkg=./... -coverprofile=coverage.out ./...
+	go test -coverprofile=coverage.out 
 	go tool cover -html=coverage.out

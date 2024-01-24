@@ -6,11 +6,12 @@ action hdr_value { msg.pushHeader(htype, hdrname, data[m:p]) }
 
 action hdr_callid   { msg.CallID = data[m:p]; msg.pushHeader(HCallID, hdrname, data[m:p]) }
 action hdr_maxfwd   { msg.MaxFwd = atoi(data[m:p]); msg.pushHeader(HMaxForwards, hdrname, data[m:p]) }
-action hdr_cseq     { msg.CSeq = atoi(data[m:p]); msg.pushHeader(HCSeq, hdrname, data[m:p]) }
+action hdr_cseq     { msg.CSeq = atoi(data[m:p]) }
 action hdr_cseq_met {
   if len(msg.Method) == 0 {
-    msg.Method = data[m:p]
+    msg.Method = data[m1:p]
   }
+  msg.pushHeader(HCSeq, hdrname, data[m:p]) 
 }
 
 callid        = word ( "@" word )?;
@@ -48,7 +49,7 @@ hdr_cnt_lang  = "Content-Language"i >sm %hdr_name %{htype = HContentLanguage}
 hdr_clen      = ("Content-Length"i | "l"i) >sm %hdr_name %{htype = HContentLength}
                 HCOLON $(hdr,1) digit+ >sm %hdr_value;
 hdr_cseq      = "CSeq"i >sm %hdr_name HCOLON $(hdr,1)
-                digit+ >sm %hdr_cseq LWS token >sm %hdr_cseq_met;
+                digit+ >sm %hdr_cseq LWS token >sm1 %hdr_cseq_met;
 hdr_ctyp      = ("Content-Type"i | "c"i) >sm %hdr_name %{htype = HContentType} HCOLON $(hdr,1)
                 (token SLASH token (SEMI token SLASH token)*) >sm %hdr_value;
 hdr_date      = "Date"i >sm %hdr_name %{htype = HDate} HCOLON $(hdr,1)

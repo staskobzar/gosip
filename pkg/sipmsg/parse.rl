@@ -20,7 +20,7 @@ func Parse(data string) (*Message, error) {
 	eof := len(data)
 	var htype HType
 	var hdrname string
-	var via, linkVia *HeaderVia
+	var via *HeaderVia
 	var naddr nameAddr
 	var cnt *HeaderContact
 	var route *Route

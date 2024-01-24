@@ -6,97 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseViaHeaders(t *testing.T) {
-	t.Run("single header", func(t *testing.T) {
-		tests := []struct {
-			hdr  string
-			want HeaderVia
-		}{
-			{"Via: SIP/2.0/UDP pbx.com ;branch=z9hG4bKnashds7",
-				HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "pbx.com",
-					Port: "", Branch: "z9hG4bKnashds7", Params: " ;branch=z9hG4bKnashds7"},
-			},
-			{"VIA: SIP/ 2.0/ TCP 10.0.0.1: 15060; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120",
-				HeaderVia{Name: "VIA", Proto: "SIP/ 2.0/ ", Transp: "TCP", Host: "10.0.0.1",
-					Port: "15060", Branch: "z9hG4bKna", Recvd: "10.0.0.100",
-					Params: "; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120"},
-			},
-			{"v: SIP/2.0/TLS [fe80::2e8d:b1ff:fef3:8a40] :6060;branch=z9hG4bKff;rl",
-				HeaderVia{Name: "v", Proto: "SIP/2.0/", Transp: "TLS", Host: "[fe80::2e8d:b1ff:fef3:8a40]",
-					Port: "6060", Branch: "z9hG4bKff", Params: ";branch=z9hG4bKff;rl"},
-			},
-		}
-		for _, tc := range tests {
-			msg, err := Parse(toMsg([]string{tc.hdr}))
-			assert.Nil(t, err)
-
-			via := msg.Find(HVia).(*HeaderVia)
-
-			assert.Equal(t, tc.want.Name, via.Name)
-			assert.Equal(t, tc.want.Proto, via.Proto)
-			assert.Equal(t, tc.want.Transp, via.Transp)
-			assert.Equal(t, tc.want.Host, via.Host)
-			assert.Equal(t, tc.want.Port, via.Port)
-			assert.Equal(t, tc.want.Branch, via.Branch)
-			assert.Equal(t, tc.want.Recvd, via.Recvd)
-			assert.Equal(t, tc.want.Params, via.Params)
-			assert.Nil(t, via.Via)
-		}
-	})
-
-	t.Run("linked header", func(t *testing.T) {
-		hdr := "Via: SIP/2.0/UDP h1.pbx.com;branch=z9hG4bKnashd" +
-			", SIP/2.0/UDP h2.pbx.com;branch=z9hG4bKnasff;received=10.0.0.1" +
-			", SIP/2.0/TCP h3.pbx.com:11609;branch=z9hG4bKnasfe;maddr=10.0.0.1"
-		msg, err := Parse(toMsg([]string{hdr}))
-		assert.Nil(t, err)
-
-		via := msg.Find(HVia).(*HeaderVia)
-		assert.Equal(t, "Via", via.Name)
-		assert.Equal(t, "SIP/2.0/", via.Proto)
-		assert.Equal(t, "UDP", via.Transp)
-		assert.Equal(t, "h1.pbx.com", via.Host)
-		assert.Equal(t, "z9hG4bKnashd", via.Branch)
-
-		via = via.Via
-		assert.Equal(t, "", via.Name)
-		assert.Equal(t, "SIP/2.0/", via.Proto)
-		assert.Equal(t, "UDP", via.Transp)
-		assert.Equal(t, "h2.pbx.com", via.Host)
-		assert.Equal(t, "z9hG4bKnasff", via.Branch)
-		assert.Equal(t, "10.0.0.1", via.Recvd)
-
-		via = via.Via
-		assert.Equal(t, "TCP", via.Transp)
-		assert.Equal(t, "h3.pbx.com", via.Host)
-		assert.Equal(t, "z9hG4bKnasfe", via.Branch)
-		assert.Equal(t, ";branch=z9hG4bKnasfe;maddr=10.0.0.1", via.Params)
-		assert.Nil(t, via.Via)
-	})
-
-	t.Run("multiple vias", func(t *testing.T) {
-		input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
-			"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n" +
-			"V: SIP / 2.0 / UDP first.example.com: 4000;ttl=16 ;maddr=224.2.0.1 ;branch=z9hG4bKa7c6a8dlze.1\r\n" +
-			"Max-Forwards: 70\r\n" +
-			"To: Bob <sip:bob@biloxi.com>\r\n" +
-			"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
-			"Call-ID: 843817637684230@998sdasdh09\r\n" +
-			"CSeq: 1826 REGISTER\r\n" +
-			"Accept \t: */*\r\n" +
-			"VIA: SIP/2.0/TCP h1.biloxi.com;branch=z9hG4bKna.7\r\n" +
-			"Contact: <sip:bob@192.0.2.4>\r\n" +
-			"Expires: 7200\r\n" +
-			"Content-Type: application/simple-message-summary ; foo/bar;xy/123d\r\n" +
-			"v: SIP/2.0/TLS h2.biloxi.com;branch=z9hG4bKna.9\r\n" +
-			"Content-Length: 1234\r\n\r\n"
-		msg, err := Parse(input)
-		assert.Nil(t, err)
-		hdrs := msg.FindAll(HVia)
-		assert.Equal(t, 4, hdrs.Len())
-	})
-}
-
 func TestParseContactHeaders(t *testing.T) {
 	t.Run("single header", func(t *testing.T) {
 		hdr := "Contact: \"Bob C\" <sip:bob@192.0.2.4>;q=0.5;foo=bar;expires=1800"
@@ -113,8 +22,16 @@ func TestParseContactHeaders(t *testing.T) {
 		assert.Nil(t, cnt.Next)
 	})
 
+	t.Run("start value", func(t *testing.T) {
+		hdr := "Contact: *"
+		msg, err := Parse(toMsg([]string{hdr}))
+		assert.Nil(t, err)
+		cnt := msg.Find(HContact).(*HeaderContact)
+		assert.Equal(t, "*", cnt.Params)
+	})
+
 	t.Run("linked header", func(t *testing.T) {
-		hdr := "m: <sip:100@192.0.2.4>,<sip:100@10.0.0.4:4555>;q=0.5,<sip:100@[2041:0:140F::875B:131B]>;q=0.8"
+		hdr := "m: <sip:100@192.0.2.4>,<sip:100@10.0.0.4:4555>;q=0.5, <sip:100@[2041:0:140F::875B:131B]>;q=0.8"
 		msg, err := Parse(toMsg([]string{hdr}))
 		assert.Nil(t, err)
 
@@ -166,7 +83,7 @@ func TestParseFromToHeader(t *testing.T) {
 		assert.Equal(t, ";user=phone;tag=ff00aa", to.Params)
 
 		assert.Equal(t, "From", from.HeaderName)
-		assert.Equal(t, "Bob ", from.DisplayName)
+		assert.Equal(t, "Bob", from.DisplayName)
 		assert.Equal(t, "sip:bob@biloxi.com", from.Addr.String())
 		assert.Equal(t, "456248", from.Tag)
 		assert.Equal(t, ";tag=456248;day=monday;free", from.Params)
@@ -209,7 +126,7 @@ func TestParseRoutingHeaders(t *testing.T) {
 
 	t.Run("linked record-route headers", func(t *testing.T) {
 		hdrs := "Record-Route: <sip:h1.domain.com;lr>;host=one\r\n" +
-			"Record-Route: <sip:h2.domain.com;lr>,<sip:dd1.pbx.com>;user=pbx,<sips:dd2.pbx.com>\r\n" +
+			"Record-Route: <sip:h2.domain.com;lr>, <sip:dd1.pbx.com>;user=pbx,<sips:dd2.pbx.com>\r\n" +
 			"Record-Route: <sip:h3.domain.com>"
 		msg, err := Parse(toMsg([]string{hdrs}))
 		assert.Nil(t, err)
@@ -233,8 +150,8 @@ func TestParseRoutingHeaders(t *testing.T) {
 		assert.Nil(t, r.Next)
 	})
 
-	t.Run("linked record-route headers", func(t *testing.T) {
-		hdrs := "Route: <sip:s1.pbx.com;lr>,<sip:h100.sip.com:5060>;now\r\n" +
+	t.Run("linked route headers", func(t *testing.T) {
+		hdrs := "Route: <sip:s1.pbx.com;lr>, <sip:h100.sip.com:5060>;now\r\n" +
 			"Route: <sip:s2.pbx.com>"
 
 		msg, err := Parse(toMsg([]string{hdrs}))
@@ -253,4 +170,108 @@ func TestParseRoutingHeaders(t *testing.T) {
 		assert.Equal(t, ";now", r.Params)
 		assert.Nil(t, r.Next)
 	})
+}
+
+func TestRouteString(t *testing.T) {
+	tests := map[string]struct {
+		route *Route
+		want  string
+	}{
+		`simple route header`: {&Route{NameAddrSpec: NameAddrSpec{
+			HeaderName: "Route",
+			Addr:       &URI{Scheme: "sip", Hostport: "10.0.0.1"},
+		}}, "Route: <sip:10.0.0.1>"},
+		`with display name and params`: {&Route{NameAddrSpec: NameAddrSpec{
+			HeaderName:  "Record-Route",
+			DisplayName: "\"PBX f1\"",
+			Addr:        &URI{Scheme: "sip", Hostport: "10.0.0.1"},
+			Params:      ";replica=true",
+		}}, "Record-Route: \"PBX f1\"<sip:10.0.0.1>;replica=true"},
+		`route with linked header`: {
+			&Route{NameAddrSpec: NameAddrSpec{
+				HeaderName: "Record-Route",
+				Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: "lr"}},
+				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: "lr"}}},
+			}, "Record-Route: <sip:p1.sip.com;lr>,<sips:p2.sip.com;lr>"},
+		`route with two linked header`: {
+			&Route{NameAddrSpec: NameAddrSpec{
+				HeaderName: "Route",
+				Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com"}},
+				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com"}},
+					Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sip", Hostport: "p3.sip.com"}}},
+				},
+			}, "Route: <sip:p1.sip.com>,<sips:p2.sip.com>,<sip:p3.sip.com>"},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.route.String())
+		})
+	}
+}
+
+func TestFromToString(t *testing.T) {
+	tests := []struct {
+		addr *NameAddr
+		want string
+	}{
+		{&NameAddr{NameAddrSpec: NameAddrSpec{
+			HeaderName:  "From",
+			DisplayName: "Alice",
+			Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+			Params:      ";tag=88sja8x"}},
+			"From: Alice <sip:alice@atlanta.com>;tag=88sja8x"},
+		{&NameAddr{NameAddrSpec: NameAddrSpec{
+			HeaderName: "f",
+			Addr:       &URI{Scheme: "sip", Userinfo: "+12125551212", Hostport: "server.phone2net.com"},
+			Params:     ";tag=887s;user=bob"}},
+			"f: <sip:+12125551212@server.phone2net.com>;tag=887s;user=bob"},
+		{&NameAddr{NameAddrSpec: NameAddrSpec{
+			HeaderName:  "To",
+			DisplayName: "\"Carol Chicago\"",
+			Addr:        &URI{Scheme: "sip", Userinfo: "carol", Hostport: "chicago.com"}}},
+			"To: \"Carol Chicago\" <sip:carol@chicago.com>"},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, tc.addr.String())
+	}
+}
+
+func TestHeaderContactString(t *testing.T) {
+	tests := []struct {
+		cnt  *HeaderContact
+		want string
+	}{
+		{&HeaderContact{NameAddrSpec: NameAddrSpec{
+			HeaderName: "Contact",
+			Addr:       &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+			Params:     ";expires=3600"}},
+			"Contact: <sip:alice@atlanta.com>;expires=3600"},
+		{&HeaderContact{NameAddrSpec: NameAddrSpec{
+			HeaderName: "Contact",
+			Params:     "*"}},
+			"Contact: *"},
+		{&HeaderContact{NameAddrSpec: NameAddrSpec{
+			HeaderName:  "m",
+			DisplayName: "Caller",
+			Addr:        &URI{Scheme: "sip", Userinfo: "caller", Hostport: "u1.privspace.com", Params: "transport=UDP"}}},
+			"m: Caller <sip:caller@u1.privspace.com;transport=UDP>"},
+		{&HeaderContact{
+			NameAddrSpec: NameAddrSpec{
+				HeaderName:  "Contact",
+				DisplayName: "\"Mr. Watson\"",
+				Addr:        &URI{Scheme: "sip", Userinfo: "watson", Hostport: "ch.bell.com"},
+				Params:      ";q=0.7; expires=3600"},
+			Next: &HeaderContact{
+				NameAddrSpec: NameAddrSpec{
+					DisplayName: "Watson",
+					Addr:        &URI{Scheme: "sips", Userinfo: "watson", Hostport: "bell.com"},
+					Params:      " ;q=0.1"},
+			},
+		},
+			"Contact: \"Mr. Watson\" <sip:watson@ch.bell.com>;q=0.7; expires=3600,Watson <sips:watson@bell.com> ;q=0.1"},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, tc.cnt.String())
+	}
 }

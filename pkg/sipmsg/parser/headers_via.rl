@@ -1,16 +1,8 @@
 %%{
 machine headers_via;
 
-action hdr_via_new {
-    via = NewHeaderVia(data[m:p])
-	msg.Headers = append(msg.Headers, via)
-}
-
-action hdr_via_link {
-    linkVia = NewHeaderVia("") // no name for linked comma via
-    via.Via = linkVia
-    via = linkVia
-}
+action hdr_via_new  { via = msg.NewHeaderVia(data[m:p]) }
+action hdr_via_link { via = via.LinkNext() }
 
 action via_proto  { via.Proto  = data[m:p] }
 action via_transp { via.Transp = data[m:p] }

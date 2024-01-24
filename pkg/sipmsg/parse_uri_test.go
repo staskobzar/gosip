@@ -56,10 +56,9 @@ func TestParseURIValidAddresses(t *testing.T) {
 		}, {
 			"sips:gateway-s1.com.?param=&foo=bar",
 			"sips", "", "gateway-s1.com.", "", "param=&foo=bar",
-			// TODO: fix username with ";"
-			// }, {
-			// 	"sips:alice;day=tuesday@atlanta.com",
-			// 	"sips", "alice;day=tuesday", "atlanta.com", "", "",
+		}, {
+			"sips:alice;day=tuesday@atlanta.com",
+			"sips", "alice;day=tuesday", "atlanta.com", "", "",
 		}, {
 			"sip:vivekg@chair-dnrc.example.com;unknownparam",
 			"sip", "vivekg", "chair-dnrc.example.com", "unknownparam", "",
@@ -80,13 +79,15 @@ func TestParseURIValidAddresses(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		uri, err := ParseURI(tc.input)
-		assert.Nil(t, err)
-		assert.Equal(t, tc.scheme, uri.Scheme)
-		assert.Equal(t, tc.userinfo, uri.Userinfo)
-		assert.Equal(t, tc.hostport, uri.Hostport)
-		assert.Equal(t, tc.params, uri.Params)
-		assert.Equal(t, tc.headers, uri.Headers)
+		t.Run(tc.input, func(t *testing.T) {
+			uri, err := ParseURI(tc.input)
+			assert.Nil(t, err)
+			assert.Equal(t, tc.scheme, uri.Scheme)
+			assert.Equal(t, tc.userinfo, uri.Userinfo)
+			assert.Equal(t, tc.hostport, uri.Hostport)
+			assert.Equal(t, tc.params, uri.Params)
+			assert.Equal(t, tc.headers, uri.Headers)
+		})
 	}
 }
 
@@ -162,7 +163,6 @@ func TestURIString(t *testing.T) {
 func BenchmarkParseURI(b *testing.B) {
 	b.ResetTimer()
 	input := "sip:alice:_pa55w0Rd@biloxi.com:5062;method=REGISTER;transport=tcp?to=sip:bob%40biloxi.com&subject=renew"
-	// input := "sips:bob:pa55w0rd@example.com:8080;user=phone?X-t=foo"
 	for i := 0; i < b.N; i++ {
 		_, _ = ParseURI(input)
 	}

@@ -55,11 +55,7 @@ func (msg *Message) String() string {
 	buf = append(buf, msg.firstLine())
 
 	for _, hdr := range msg.Headers {
-		h := hdr.String()
-		if hdr.t() == HCSeq {
-			h += " " + msg.Method
-		}
-		buf = append(buf, h)
+		buf = append(buf, hdr.String())
 	}
 
 	return strings.Join(buf, "\r\n") + "\r\n\r\n" + msg.Body
@@ -69,7 +65,7 @@ func (msg *Message) firstLine() string {
 	if msg.t == HRequest {
 		return msg.Method + " " + msg.RURI.String() + " SIP/2.0"
 	}
-	return "SIP/2.0" + msg.Code + " " + msg.Reason
+	return "SIP/2.0 " + msg.Code + " " + msg.Reason
 }
 
 func (msg *Message) find(match func(h anyHeader) bool) anyHeader {
