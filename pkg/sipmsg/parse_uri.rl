@@ -30,7 +30,7 @@ func ParseURI(data string) (*URI, error) {
 
 		include grammar "parser/grammar.rl";
 
-		# // set special marker for userinfo because its machine contains ";"
+		# // set special marker m1 for userinfo because its machine contains ";"
 		# // and same char is used in uri_params as a boarder condition
 		# // it helps to handle correctly usernames in urls like "sip:alice;day=tuesday@sip.com"
 		main := scheme %scheme ":" ( userinfo >sm1 %userinfo "@" )?

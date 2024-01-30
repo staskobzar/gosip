@@ -38,7 +38,11 @@ func TestParseRequestToMessage(t *testing.T) {
 	assert.Equal(t, "sip:bob@biloxi.com", msg.To.Addr.String())
 	assert.Equal(t, 9, msg.HLen())
 	assert.Empty(t, msg.Body)
+
 	assert.False(t, msg.IsResponse())
+	assert.Equal(t, "REGISTER", msg.SIPMethod())
+	assert.Zero(t, msg.ResponseCode())
+	assert.Equal(t, "z9hG4bKnashds7", msg.TopViaBranch())
 
 	t.Run("error", func(t *testing.T) {
 		input := "REGISTER sip:registrar.biloxi.com FOO/2.0\r\n" +
@@ -58,7 +62,6 @@ func TestParseRequestToMessage(t *testing.T) {
 
 func TestParseResponseToMessage(t *testing.T) {
 	input := "SIP/2.0 200 OK\r\n" +
-		"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7;received=192.0.2.4\r\n" +
 		"To: Bob <sip:bob@biloxi.com>;tag=2493k59kd\r\n" +
 		"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
 		"Call-ID: 843817637684230@998sdasdh09\r\n" +
@@ -74,7 +77,11 @@ func TestParseResponseToMessage(t *testing.T) {
 	assert.Empty(t, msg.RURI)
 	assert.Equal(t, "200", msg.Code)
 	assert.Equal(t, "OK", msg.Reason)
+
 	assert.True(t, msg.IsResponse())
+	assert.Equal(t, "REGISTER", msg.SIPMethod())
+	assert.Equal(t, 200, msg.ResponseCode())
+	assert.Equal(t, "", msg.TopViaBranch())
 }
 
 func TestParseStoreHeadersWithType(t *testing.T) {
@@ -113,12 +120,16 @@ func TestParseStoreHeadersWithType(t *testing.T) {
 		{"Min-Expires: 60\r\n", HMinExpires},
 		{"Organization: Boxes by Bob\r\n", HOrganization},
 		{"Priority: emergency\r\n", HPriority},
-		{`Proxy-Authenticate: Digest realm="atlanta.com", domain="sip:ss1.carrier.com", qop="auth",` +
-			`nonce="f84f1cec41e6cbe5aea9c8e88d359", opaque="", stale=FALSE, algorithm=MD5` + "\r\n",
-			HProxyAuthenticate},
-		{`Proxy-Authorization: Digest username="Alice", realm="atlanta.com",` +
-			`nonce="c60f3082ee1212b402a21831ae", response="245f23415f11432b3434341c022"` + "\r\n",
-			HProxyAuthorization},
+		{
+			`Proxy-Authenticate: Digest realm="atlanta.com", domain="sip:ss1.carrier.com", qop="auth",` +
+				`nonce="f84f1cec41e6cbe5aea9c8e88d359", opaque="", stale=FALSE, algorithm=MD5` + "\r\n",
+			HProxyAuthenticate,
+		},
+		{
+			`Proxy-Authorization: Digest username="Alice", realm="atlanta.com",` +
+				`nonce="c60f3082ee1212b402a21831ae", response="245f23415f11432b3434341c022"` + "\r\n",
+			HProxyAuthorization,
+		},
 		{"Proxy-Require: foo, bar\r\n", HProxyRequire},
 		{"Reply-To: Bob <sip:bob@biloxi.com>\r\n", HReplyTo},
 		{"Require: 100rel\r\n", HRequire},
@@ -130,9 +141,11 @@ func TestParseStoreHeadersWithType(t *testing.T) {
 		{"Unsupported: foo\r\n", HUnsupported},
 		{"User-Agent: Softphone Beta1.5\r\n", HUserAgent},
 		{"Warning: 307 isi.edu \"Session parameter 'foo' not understood\"\r\n", HWarning},
-		{`WWW-Authenticate: Digest realm="atlanta.com", domain="sip:ss1.carrier.com", qop="auth",` +
-			`nonce="f84f1cec41e6cbe5aea9c8e88d359", opaque="", stale=FALSE, algorithm=MD5` + "\r\n",
-			HWWWAuthenticate},
+		{
+			`WWW-Authenticate: Digest realm="atlanta.com", domain="sip:ss1.carrier.com", qop="auth",` +
+				`nonce="f84f1cec41e6cbe5aea9c8e88d359", opaque="", stale=FALSE, algorithm=MD5` + "\r\n",
+			HWWWAuthenticate,
+		},
 		{"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n", HVia},
 		{"Content-Length: 1234\r\n", HContentLength},
 	}
@@ -140,7 +153,7 @@ func TestParseStoreHeadersWithType(t *testing.T) {
 		msg, err := Parse(toMsg([]string{tc.hdr}))
 		assert.Nil(t, err)
 		h := msg.Find(tc.want)
-		assert.Equal(t, tc.want, h.t())
+		assert.Equal(t, tc.want, h.Type())
 	}
 }
 

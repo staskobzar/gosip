@@ -40,7 +40,7 @@ action hdr_route_init {
 	msg.Headers = append(msg.Headers, route)
 }
 action hdr_route_link {
-    route.Next = NewRoute(route.Type, "")
+    route.Next = NewRoute(route.T, "")
     route = route.Next
     naddr = route
 }

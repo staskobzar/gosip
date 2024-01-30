@@ -8267,7 +8267,7 @@ _match:
 		case 33:
 //line parser/headers_addr.rl:42
 
-    route.Next = NewRoute(route.Type, "")
+    route.Next = NewRoute(route.T, "")
     route = route.Next
     naddr = route
 

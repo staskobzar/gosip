@@ -1,5 +1,6 @@
 package sipmsg
 
+// HType header type
 type HType uint8
 
 // headers' types enum
@@ -53,52 +54,64 @@ const (
 	HWWWAuthenticate
 )
 
-type anyHeader interface {
-	t() HType
-	name() string
-
+// AnyHeader interface for any SIP header in Message
+type AnyHeader interface {
+	Type() HType
+	Name() string
 	String() string
 }
 
-type Headers []anyHeader
+// Headers list
+type Headers []AnyHeader
 
+// Len headers list length
 func (hdrs Headers) Len() int { return len(hdrs) }
 
+// HeaderGeneric generic SIP message header
 type HeaderGeneric struct {
-	Type  HType
-	Name  string
-	Value string
+	T          HType
+	HeaderName string
+	Value      string
 }
 
-func (hg *HeaderGeneric) t() HType     { return hg.Type }
-func (hg *HeaderGeneric) name() string { return hg.Name }
+// Type returns HVia type
+// @impl anyHeader interface
+func (hg *HeaderGeneric) Type() HType { return hg.T }
+
+// Name returns header name as string
+// @impl anyHeader interface
+func (hg *HeaderGeneric) Name() string { return hg.HeaderName }
+
+// String method to build string representation
+// @impl anyHeader interface
 func (hg *HeaderGeneric) String() string {
-	return hg.Name + ": " + hg.Value
+	return hg.HeaderName + ": " + hg.Value
 }
 
 // HeaderVia SIP Via header with a pointer to linked
 // comma separated list
 type HeaderVia struct {
-	Name   string
-	Proto  string
-	Transp string
-	Host   string
-	Port   string
-	Branch string
-	Recvd  string
-	Params string
-	Next   *HeaderVia // linked list for comma separated list of vias in the same header
+	HeaderName string
+	Proto      string
+	Transp     string
+	Host       string
+	Port       string
+	Branch     string
+	Recvd      string
+	Params     string
+	Next       *HeaderVia // linked list for comma separated list of vias in the same header
 }
 
 // NewHeaderVia create new header with name
 func (msg *Message) NewHeaderVia(name string) *HeaderVia {
 	via := &HeaderVia{
-		Name: name,
+		HeaderName: name,
 	}
 	msg.Headers = append(msg.Headers, via)
 	return via
 }
 
+// LinkNext create *HeaderVia and link it to the caller
 func (via *HeaderVia) LinkNext() *HeaderVia {
 	linkVia := &HeaderVia{}
 	via.Next = linkVia
@@ -108,8 +121,8 @@ func (via *HeaderVia) LinkNext() *HeaderVia {
 // String method to build string representation
 func (via *HeaderVia) String() string {
 	var hdr string
-	if len(via.Name) > 0 {
-		hdr = via.Name + ": "
+	if len(via.HeaderName) > 0 {
+		hdr = via.HeaderName + ": "
 	}
 	hdr += via.Proto + via.Transp + " " + via.Host
 
@@ -129,5 +142,10 @@ func (via *HeaderVia) String() string {
 	return hdr
 }
 
-func (via *HeaderVia) t() HType     { return HVia }
-func (via *HeaderVia) name() string { return via.Name }
+// Type returns HVia type
+// @impl anyHeader interface
+func (via *HeaderVia) Type() HType { return HVia }
+
+// Name returns header name as string
+// @impl anyHeader interface
+func (via *HeaderVia) Name() string { return via.HeaderName }

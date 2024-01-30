@@ -12,18 +12,27 @@ func TestParseViaHeaders(t *testing.T) {
 			hdr  string
 			want HeaderVia
 		}{
-			{"Via: SIP/2.0/UDP pbx.com ;branch=z9hG4bKnashds7",
-				HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "pbx.com",
-					Port: "", Branch: "z9hG4bKnashds7", Params: " ;branch=z9hG4bKnashds7"},
+			{
+				"Via: SIP/2.0/UDP pbx.com ;branch=z9hG4bKnashds7",
+				HeaderVia{
+					HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "pbx.com",
+					Port: "", Branch: "z9hG4bKnashds7", Params: " ;branch=z9hG4bKnashds7",
+				},
 			},
-			{"VIA: SIP/ 2.0/ TCP 10.0.0.1: 15060; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120",
-				HeaderVia{Name: "VIA", Proto: "SIP/ 2.0/ ", Transp: "TCP", Host: "10.0.0.1",
+			{
+				"VIA: SIP/ 2.0/ TCP 10.0.0.1: 15060; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120",
+				HeaderVia{
+					HeaderName: "VIA", Proto: "SIP/ 2.0/ ", Transp: "TCP", Host: "10.0.0.1",
 					Port: "15060", Branch: "z9hG4bKna", Recvd: "10.0.0.100",
-					Params: "; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120"},
+					Params: "; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120",
+				},
 			},
-			{"v: SIP/2.0/TLS [fe80::2e8d:b1ff:fef3:8a40] :6060;branch=z9hG4bKff;rl",
-				HeaderVia{Name: "v", Proto: "SIP/2.0/", Transp: "TLS", Host: "[fe80::2e8d:b1ff:fef3:8a40]",
-					Port: "6060", Branch: "z9hG4bKff", Params: ";branch=z9hG4bKff;rl"},
+			{
+				"v: SIP/2.0/TLS [fe80::2e8d:b1ff:fef3:8a40] :6060;branch=z9hG4bKff;rl",
+				HeaderVia{
+					HeaderName: "v", Proto: "SIP/2.0/", Transp: "TLS", Host: "[fe80::2e8d:b1ff:fef3:8a40]",
+					Port: "6060", Branch: "z9hG4bKff", Params: ";branch=z9hG4bKff;rl",
+				},
 			},
 		}
 		for _, tc := range tests {
@@ -32,7 +41,7 @@ func TestParseViaHeaders(t *testing.T) {
 
 			via := msg.Find(HVia).(*HeaderVia)
 
-			assert.Equal(t, tc.want.Name, via.Name)
+			assert.Equal(t, tc.want.HeaderName, via.HeaderName)
 			assert.Equal(t, tc.want.Proto, via.Proto)
 			assert.Equal(t, tc.want.Transp, via.Transp)
 			assert.Equal(t, tc.want.Host, via.Host)
@@ -52,14 +61,14 @@ func TestParseViaHeaders(t *testing.T) {
 		assert.Nil(t, err)
 
 		via := msg.Find(HVia).(*HeaderVia)
-		assert.Equal(t, "Via", via.Name)
+		assert.Equal(t, "Via", via.HeaderName)
 		assert.Equal(t, "SIP/2.0/", via.Proto)
 		assert.Equal(t, "UDP", via.Transp)
 		assert.Equal(t, "h1.pbx.com", via.Host)
 		assert.Equal(t, "z9hG4bKnashd", via.Branch)
 
 		via = via.Next
-		assert.Equal(t, "", via.Name)
+		assert.Equal(t, "", via.HeaderName)
 		assert.Equal(t, "SIP/2.0/", via.Proto)
 		assert.Equal(t, "UDP", via.Transp)
 		assert.Equal(t, "h2.pbx.com", via.Host)
@@ -75,6 +84,7 @@ func TestParseViaHeaders(t *testing.T) {
 	})
 
 	t.Run("multiple vias", func(t *testing.T) {
+		//nolint:goconst
 		input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
 			"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n" +
 			"V: SIP / 2.0 / UDP first.example.com: 4000;ttl=16 ;maddr=224.2.0.1 ;branch=z9hG4bKa7c6a8dlze.1\r\n" +
@@ -103,33 +113,42 @@ func TestHeaderViaString(t *testing.T) {
 		want string
 	}{
 		`simple via`: {
-			&HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "atlanta.com"},
+			&HeaderVia{HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "atlanta.com"},
 			"Via: SIP/2.0/UDP atlanta.com",
 		},
 		`with port`: {
-			&HeaderVia{Name: "v", Proto: "SIP/2.0/", Transp: "TCP",
-				Host: "atlanta.com", Port: "5061"},
+			&HeaderVia{
+				HeaderName: "v", Proto: "SIP/2.0/", Transp: "TCP",
+				Host: "atlanta.com", Port: "5061",
+			},
 			"v: SIP/2.0/TCP atlanta.com:5061",
 		},
 		`with params`: {
-			&HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "atlanta.com",
-				Params: ";branch=ff00aa"},
+			&HeaderVia{
+				HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "atlanta.com",
+				Params: ";branch=ff00aa",
+			},
 			"Via: SIP/2.0/UDP atlanta.com;branch=ff00aa",
 		},
 		`with port and params`: {
-			&HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.0.0.100",
-				Port: "8060", Params: ";branch=ff00aa"},
+			&HeaderVia{
+				HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.0.0.100",
+				Port: "8060", Params: ";branch=ff00aa",
+			},
 			"Via: SIP/2.0/UDP 10.0.0.100:8060;branch=ff00aa",
 		},
 		`via with one linked`: {
-			&HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.100", Params: ";branch=z9Hffa",
+			&HeaderVia{
+				HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.100", Params: ";branch=z9Hffa",
 				Next: &HeaderVia{Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.200", Port: "5067", Params: ";branch=z9Hff0"},
 			},
 			"Via: SIP/2.0/UDP 10.1.1.100;branch=z9Hffa,SIP/2.0/UDP 10.1.1.200:5067;branch=z9Hff0",
 		},
 		`via with two linked`: {
-			&HeaderVia{Name: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.1", Params: ";branch=z9Hf.2",
-				Next: &HeaderVia{Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.2", Params: ";branch=z9Hf.1",
+			&HeaderVia{
+				HeaderName: "Via", Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.1", Params: ";branch=z9Hf.2",
+				Next: &HeaderVia{
+					Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.2", Params: ";branch=z9Hf.1",
 					Next: &HeaderVia{Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.3", Params: ";branch=z9Hf.0"},
 				},
 			},

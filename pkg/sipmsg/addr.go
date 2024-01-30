@@ -28,7 +28,9 @@ func NewNameAddrSpec(name string) NameAddrSpec {
 		Addr:       &URI{},
 	}
 }
-func (naddr *NameAddrSpec) name() string              { return naddr.HeaderName }
+
+// Name returns header name as string and implements AnyHeader
+func (naddr *NameAddrSpec) Name() string              { return naddr.HeaderName }
 func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = strings.TrimSpace(val) }
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
@@ -40,15 +42,15 @@ func (naddr *NameAddrSpec) setParam(_, val string)    { naddr.Params = val }
 // NameAddr headers From and To
 type NameAddr struct {
 	NameAddrSpec
-	Type HType
-	Tag  string
+	T   HType
+	Tag string
 }
 
 // NewNameAddr creates new NameAddr header
 // t must be HFrom or HTo
 func NewNameAddr(t HType, name string) *NameAddr {
 	return &NameAddr{
-		Type:         t,
+		T:            t,
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
 }
@@ -66,8 +68,9 @@ func (naddr *NameAddr) String() string {
 	return hdr
 }
 
+// Type returns NameAddr type
 // @impl anyHeader interface
-func (naddr *NameAddr) t() HType { return naddr.Type }
+func (naddr *NameAddr) Type() HType { return naddr.T }
 
 // override method from NameAddrSpec
 func (naddr *NameAddr) setParam(name, val string) {
@@ -133,12 +136,13 @@ func (cnt *HeaderContact) setParam(name, val string) {
 	}
 }
 
+// Type returns HContact type
 // @impl anyHeader interface
-func (cnt *HeaderContact) t() HType { return HContact }
+func (cnt *HeaderContact) Type() HType { return HContact }
 
 // Route structure that represence Route or Record-Route headers
 type Route struct {
-	Type HType
+	T HType
 	NameAddrSpec
 	Next *Route
 }
@@ -147,7 +151,7 @@ type Route struct {
 // parameter "t" must be HRoute or HRecordRoute
 func NewRoute(t HType, name string) *Route {
 	return &Route{
-		Type:         t,
+		T:            t,
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
 }
@@ -173,5 +177,6 @@ func (r *Route) String() string {
 	return hdr
 }
 
+// Type returns Route type
 // @impl anyHeader interface
-func (r *Route) t() HType { return r.Type }
+func (r *Route) Type() HType { return r.T }

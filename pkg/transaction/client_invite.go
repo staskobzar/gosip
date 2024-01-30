@@ -37,7 +37,8 @@ func (txn *ClientInvite) Consume(msg sip.Message) {
 		// absorb re-transactions
 		if code >= 300 && code <= 699 {
 			// 17.1.1.3 Construction of the ACK Request
-			txn.Send(msg.Ack())
+			ack := txn.req.Ack(msg)
+			txn.Send(ack)
 		}
 	default:
 		logger.Err("client invite txn should not be in this state %d", txn.state.Load())
@@ -111,7 +112,7 @@ func (txn *ClientInvite) proceed(code int, msg sip.Message) {
 		txn.terminate()
 	case code >= 300 && code <= 699:
 		txn.state.Store(Completed)
-		txn.Send(msg.Ack())
+		txn.Send(txn.req.Ack(msg))
 		txn.fireTimerD()
 	default:
 		logger.Err("invalid proceed code %d", code)

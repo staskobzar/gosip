@@ -1,3 +1,4 @@
+// Package sipmsg provides SIP Message parse and generate
 package sipmsg
 
 import (
@@ -11,6 +12,7 @@ var (
 	ErrMsgParse = errors.New("SIP Message parse")
 )
 
-func Decode(input []byte) (sip.Message, error) {
+// Decode parse received SIP message into Message
+func Decode(_ []byte) (sip.Message, error) {
 	return nil, nil
 }

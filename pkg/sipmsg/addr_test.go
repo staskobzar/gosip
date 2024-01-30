@@ -92,7 +92,7 @@ func TestParseFromToHeader(t *testing.T) {
 	t.Run("fail when more then one To header", func(t *testing.T) {
 		hdrs := "To: \"Alice Home\" <sip:alice@biloxi.com>;tag=ff00aa\r\n" +
 			"t: <sip:alice@biloxi.com>\r\n" +
-			"From: Bob <sip:bob@biloxi.com>;tag=456248;day=monday;free"
+			"From: Bob <sip:bob@biloxi.com>;tag=456249;day=monday;free"
 
 		_, err := Parse(toMsg([]string{hdrs}))
 		assert.NotNil(t, err)
@@ -102,7 +102,7 @@ func TestParseFromToHeader(t *testing.T) {
 	t.Run("fail when more then one From header", func(t *testing.T) {
 		hdrs := "To: \"Alice Home\" <sip:alice@biloxi.com>;tag=ff00aa\r\n" +
 			"f: <sip:alice@biloxi.com>\r\n" +
-			"From: Bob <sip:bob@biloxi.com>;tag=456248;day=monday;free"
+			"From: Bob <sip:bob@biloxi.com>;tag=456249;day=monday;free"
 
 		_, err := Parse(toMsg([]string{hdrs}))
 		assert.NotNil(t, err)
@@ -188,19 +188,26 @@ func TestRouteString(t *testing.T) {
 			Params:      ";replica=true",
 		}}, "Record-Route: \"PBX f1\"<sip:10.0.0.1>;replica=true"},
 		`route with linked header`: {
-			&Route{NameAddrSpec: NameAddrSpec{
-				HeaderName: "Record-Route",
-				Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: "lr"}},
-				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: "lr"}}},
-			}, "Record-Route: <sip:p1.sip.com;lr>,<sips:p2.sip.com;lr>"},
-		`route with two linked header`: {
-			&Route{NameAddrSpec: NameAddrSpec{
-				HeaderName: "Route",
-				Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com"}},
-				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com"}},
-					Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sip", Hostport: "p3.sip.com"}}},
+			&Route{
+				NameAddrSpec: NameAddrSpec{
+					HeaderName: "Record-Route",
+					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: "lr"},
 				},
-			}, "Route: <sip:p1.sip.com>,<sips:p2.sip.com>,<sip:p3.sip.com>"},
+				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: "lr"}}},
+			}, "Record-Route: <sip:p1.sip.com;lr>,<sips:p2.sip.com;lr>",
+		},
+		`route with two linked header`: {
+			&Route{
+				NameAddrSpec: NameAddrSpec{
+					HeaderName: "Route",
+					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com"},
+				},
+				Next: &Route{
+					NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com"}},
+					Next:         &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sip", Hostport: "p3.sip.com"}}},
+				},
+			}, "Route: <sip:p1.sip.com>,<sips:p2.sip.com>,<sip:p3.sip.com>",
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -214,22 +221,31 @@ func TestFromToString(t *testing.T) {
 		addr *NameAddr
 		want string
 	}{
-		{&NameAddr{NameAddrSpec: NameAddrSpec{
-			HeaderName:  "From",
-			DisplayName: "Alice",
-			Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
-			Params:      ";tag=88sja8x"}},
-			"From: Alice <sip:alice@atlanta.com>;tag=88sja8x"},
-		{&NameAddr{NameAddrSpec: NameAddrSpec{
-			HeaderName: "f",
-			Addr:       &URI{Scheme: "sip", Userinfo: "+12125551212", Hostport: "server.phone2net.com"},
-			Params:     ";tag=887s;user=bob"}},
-			"f: <sip:+12125551212@server.phone2net.com>;tag=887s;user=bob"},
-		{&NameAddr{NameAddrSpec: NameAddrSpec{
-			HeaderName:  "To",
-			DisplayName: "\"Carol Chicago\"",
-			Addr:        &URI{Scheme: "sip", Userinfo: "carol", Hostport: "chicago.com"}}},
-			"To: \"Carol Chicago\" <sip:carol@chicago.com>"},
+		{
+			&NameAddr{NameAddrSpec: NameAddrSpec{
+				HeaderName:  "From",
+				DisplayName: "Alice",
+				Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+				Params:      ";tag=88sja8x",
+			}},
+			"From: Alice <sip:alice@atlanta.com>;tag=88sja8x",
+		},
+		{
+			&NameAddr{NameAddrSpec: NameAddrSpec{
+				HeaderName: "f",
+				Addr:       &URI{Scheme: "sip", Userinfo: "+12125551212", Hostport: "server.phone2net.com"},
+				Params:     ";tag=887s;user=bob",
+			}},
+			"f: <sip:+12125551212@server.phone2net.com>;tag=887s;user=bob",
+		},
+		{
+			&NameAddr{NameAddrSpec: NameAddrSpec{
+				HeaderName:  "To",
+				DisplayName: "\"Carol Chicago\"",
+				Addr:        &URI{Scheme: "sip", Userinfo: "carol", Hostport: "chicago.com"},
+			}},
+			"To: \"Carol Chicago\" <sip:carol@chicago.com>",
+		},
 	}
 	for _, tc := range tests {
 		assert.Equal(t, tc.want, tc.addr.String())
@@ -241,34 +257,47 @@ func TestHeaderContactString(t *testing.T) {
 		cnt  *HeaderContact
 		want string
 	}{
-		{&HeaderContact{NameAddrSpec: NameAddrSpec{
-			HeaderName: "Contact",
-			Addr:       &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
-			Params:     ";expires=3600"}},
-			"Contact: <sip:alice@atlanta.com>;expires=3600"},
-		{&HeaderContact{NameAddrSpec: NameAddrSpec{
-			HeaderName: "Contact",
-			Params:     "*"}},
-			"Contact: *"},
-		{&HeaderContact{NameAddrSpec: NameAddrSpec{
-			HeaderName:  "m",
-			DisplayName: "Caller",
-			Addr:        &URI{Scheme: "sip", Userinfo: "caller", Hostport: "u1.privspace.com", Params: "transport=UDP"}}},
-			"m: Caller <sip:caller@u1.privspace.com;transport=UDP>"},
-		{&HeaderContact{
-			NameAddrSpec: NameAddrSpec{
-				HeaderName:  "Contact",
-				DisplayName: "\"Mr. Watson\"",
-				Addr:        &URI{Scheme: "sip", Userinfo: "watson", Hostport: "ch.bell.com"},
-				Params:      ";q=0.7; expires=3600"},
-			Next: &HeaderContact{
-				NameAddrSpec: NameAddrSpec{
-					DisplayName: "Watson",
-					Addr:        &URI{Scheme: "sips", Userinfo: "watson", Hostport: "bell.com"},
-					Params:      " ;q=0.1"},
-			},
+		{
+			&HeaderContact{NameAddrSpec: NameAddrSpec{
+				HeaderName: "Contact",
+				Addr:       &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+				Params:     ";expires=3600",
+			}},
+			"Contact: <sip:alice@atlanta.com>;expires=3600",
 		},
-			"Contact: \"Mr. Watson\" <sip:watson@ch.bell.com>;q=0.7; expires=3600,Watson <sips:watson@bell.com> ;q=0.1"},
+		{
+			&HeaderContact{NameAddrSpec: NameAddrSpec{
+				HeaderName: "Contact",
+				Params:     "*",
+			}},
+			"Contact: *",
+		},
+		{
+			&HeaderContact{NameAddrSpec: NameAddrSpec{
+				HeaderName:  "m",
+				DisplayName: "Caller",
+				Addr:        &URI{Scheme: "sip", Userinfo: "caller", Hostport: "u1.privspace.com", Params: "transport=UDP"},
+			}},
+			"m: Caller <sip:caller@u1.privspace.com;transport=UDP>",
+		},
+		{
+			&HeaderContact{
+				NameAddrSpec: NameAddrSpec{
+					HeaderName:  "Contact",
+					DisplayName: "\"Mr. Watson\"",
+					Addr:        &URI{Scheme: "sip", Userinfo: "watson", Hostport: "ch.bell.com"},
+					Params:      ";q=0.7; expires=3600",
+				},
+				Next: &HeaderContact{
+					NameAddrSpec: NameAddrSpec{
+						DisplayName: "Watson",
+						Addr:        &URI{Scheme: "sips", Userinfo: "watson", Hostport: "bell.com"},
+						Params:      " ;q=0.1",
+					},
+				},
+			},
+			"Contact: \"Mr. Watson\" <sip:watson@ch.bell.com>;q=0.7; expires=3600,Watson <sips:watson@bell.com> ;q=0.1",
+		},
 	}
 
 	for _, tc := range tests {

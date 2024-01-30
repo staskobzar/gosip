@@ -30,8 +30,7 @@ type EndPoint interface {
 type Basic struct {
 	transp   sip.Transport
 	endpoint EndPoint
-	branch   string
-	method   string
+	req      sip.Message
 	state    *atomic.Uint32
 	timer    Timer
 	addr     netip.AddrPort
@@ -60,8 +59,7 @@ func initBasicTxn(transp sip.Transport, endpoint EndPoint, msg sip.Message) Basi
 	return Basic{
 		transp:   transp,
 		endpoint: endpoint,
-		method:   msg.Method(),
-		branch:   msg.TopViaBranch(),
+		req:      msg,
 		state:    state,
 		timer:    initTimer(),
 		halt:     make(chan struct{}),
@@ -69,7 +67,7 @@ func initBasicTxn(transp sip.Transport, endpoint EndPoint, msg sip.Message) Basi
 }
 
 func (txn Basic) ID() string {
-	return txn.branch
+	return txn.req.TopViaBranch()
 }
 
 func (txn Basic) Send(msg sip.Message) {
@@ -115,7 +113,7 @@ func New(endpoint EndPoint) *Layer {
 // used by TU to start new transaction
 func (txl *Layer) Client(msg sip.Message, transp sip.Transport, addr netip.AddrPort) {
 	var txn Transaction
-	if msg.Method() == "INVITE" {
+	if msg.SIPMethod() == "INVITE" {
 		txn = createClientInvite(transp, txl, msg)
 	} else {
 		txn = createClientNonInvite(transp, txl, msg)
