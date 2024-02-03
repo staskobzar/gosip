@@ -98,7 +98,7 @@ type HeaderVia struct {
 	Port       string
 	Branch     string
 	Recvd      string
-	Params     string
+	Params     Params
 	Next       *HeaderVia // linked list for comma separated list of vias in the same header
 }
 
@@ -130,8 +130,8 @@ func (via *HeaderVia) String() string {
 		hdr += ":" + via.Port
 	}
 
-	if len(via.Params) > 0 {
-		hdr += via.Params
+	if via.Params.Len() > 0 {
+		hdr += via.Params.String()
 	}
 
 	if via.Next != nil {

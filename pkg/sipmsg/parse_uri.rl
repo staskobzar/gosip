@@ -25,7 +25,7 @@ func ParseURI(data string) (*URI, error) {
 		action scheme   { uri.Scheme   = data[:p] }
 		action userinfo { uri.Userinfo = data[m1:p] }
 		action hostport { uri.Hostport = data[m:p] }
-		action params   { uri.Params   = data[m:p] }
+		action params   { uri.Params   = Params(data[m:p]).setup() }
 		action headers  { uri.Headers  = data[m:p] }
 
 		include grammar "parser/grammar.rl";

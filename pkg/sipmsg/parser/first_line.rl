@@ -14,7 +14,7 @@ action first_line_reason { msg.Reason = data[m:p] }
 action ruri_scheme       { msg.RURI.Scheme   = data[m:p] }
 action ruri_userinfo     { msg.RURI.Userinfo = data[m:p] }
 action ruri_hostport     { msg.RURI.Hostport = data[m:p] }
-action ruri_params       { msg.RURI.Params   = data[m:p] }
+action ruri_params       { msg.RURI.Params   = Params(data[m:p]).setup() }
 action ruri_headers      { msg.RURI.Headers  = data[m:p] }
 
 # CONSTRAINT: fixed version

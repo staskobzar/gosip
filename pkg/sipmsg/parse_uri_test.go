@@ -85,7 +85,7 @@ func TestParseURIValidAddresses(t *testing.T) {
 			assert.Equal(t, tc.scheme, uri.Scheme)
 			assert.Equal(t, tc.userinfo, uri.Userinfo)
 			assert.Equal(t, tc.hostport, uri.Hostport)
-			assert.Equal(t, tc.params, uri.Params)
+			assert.Equal(t, tc.params, uri.Params.str())
 			assert.Equal(t, tc.headers, uri.Headers)
 		})
 	}
@@ -161,9 +161,22 @@ func TestURIString(t *testing.T) {
 }
 
 func BenchmarkParseURI(b *testing.B) {
-	b.ResetTimer()
 	input := "sip:alice:_pa55w0Rd@biloxi.com:5062;method=REGISTER;transport=tcp?to=sip:bob%40biloxi.com&subject=renew"
 	for i := 0; i < b.N; i++ {
 		_, _ = ParseURI(input)
+	}
+}
+
+func BenchmarkURIString(b *testing.B) {
+	uri := &URI{
+		Scheme:   "sip",
+		Userinfo: "alice:_pa55w0Rd",
+		Hostport: "biloxi.com:5062",
+		Params:   "method=REGISTER;transport=tcp",
+		Headers:  "to=sip:bob%40biloxi.com&subject=renew",
+	}
+
+	for i := 0; i < b.N; i++ {
+		_ = uri.String()
 	}
 }

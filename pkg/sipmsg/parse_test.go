@@ -166,7 +166,7 @@ func TestParseHeaderNameAddr(t *testing.T) {
 			"sip:alice@atlanta.com", "", "sip:alice@atlanta.com", "", "",
 		},
 		`only address with tag`: {
-			"sip:100@pbx.com ;tag=0axff34", "", "sip:100@pbx.com", "0axff34", " ;tag=0axff34",
+			"sip:100@pbx.com ;tag=0axff34", "", "sip:100@pbx.com", "0axff34", "tag=0axff34",
 		},
 		`with display name`: {
 			"Bob <sip:bob@atlanta.com>", "Bob", "sip:bob@atlanta.com", "", "",
@@ -175,13 +175,13 @@ func TestParseHeaderNameAddr(t *testing.T) {
 			"\"Big Co.\" <sip:big@sip.com>", "\"Big Co.\"", "sip:big@sip.com", "", "",
 		},
 		`with params`: {
-			"<sip:100@sip.com>;user=alice;x-foo", "", "sip:100@sip.com", "", ";user=alice;x-foo",
+			"<sip:100@sip.com>;user=alice;x-foo", "", "sip:100@sip.com", "", "user=alice;x-foo",
 		},
 		`with tag`: {
-			"Foo <sip:100@sip.com>;tag=2493k59kd", "Foo", "sip:100@sip.com", "2493k59kd", ";tag=2493k59kd",
+			"Foo <sip:100@sip.com>;tag=2493k59kd", "Foo", "sip:100@sip.com", "2493k59kd", "tag=2493k59kd",
 		},
 		`with tag and params`: {
-			"<sip:100@sip.com>;tag=2493k59kd;user=phone", "", "sip:100@sip.com", "2493k59kd", ";tag=2493k59kd;user=phone",
+			"<sip:100@sip.com>;tag=2493k59kd;user=phone", "", "sip:100@sip.com", "2493k59kd", "tag=2493k59kd;user=phone",
 		},
 	}
 
@@ -192,7 +192,7 @@ func TestParseHeaderNameAddr(t *testing.T) {
 			assert.Equal(t, tc.name, msg.From.DisplayName)
 			assert.Equal(t, tc.addr, msg.From.Addr.String())
 			assert.Equal(t, tc.tag, msg.From.Tag)
-			assert.Equal(t, tc.prms, msg.From.Params)
+			assert.Equal(t, tc.prms, msg.From.Params.str())
 		})
 	}
 }

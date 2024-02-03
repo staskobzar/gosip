@@ -10,7 +10,7 @@ action via_host   { via.Host   = data[m:p] }
 action via_port   { via.Port   = data[m:p] }
 action via_branch { via.Branch = data[m:p] }
 action via_recvd  { via.Recvd  = data[m:p] }
-action via_hprm   { via.Params = data[m1:p] }
+action via_hprm   { via.Params = Params(data[m1:p]).setup() }
 
 proto_name    = "SIP" SLASH "2.0" SLASH;
 sent_protocol = proto_name >sm %via_proto token >sm %via_transp;

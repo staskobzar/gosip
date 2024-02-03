@@ -646,7 +646,7 @@ _match:
  uri.Hostport = data[m:p] 
 		case 5:
 //line parse_uri.rl:28
- uri.Params   = data[m:p] 
+ uri.Params   = Params(data[m:p]).setup() 
 //line parse_uri.go:651
 		}
 	}
@@ -671,7 +671,7 @@ _again:
  uri.Hostport = data[m:p] 
 			case 5:
 //line parse_uri.rl:28
- uri.Params   = data[m:p] 
+ uri.Params   = Params(data[m:p]).setup() 
 			case 6:
 //line parse_uri.rl:29
  uri.Headers  = data[m:p] 

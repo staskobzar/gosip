@@ -8162,7 +8162,7 @@ _match:
  msg.RURI.Hostport = data[m:p] 
 		case 10:
 //line parser/first_line.rl:17
- msg.RURI.Params   = data[m:p] 
+ msg.RURI.Params   = Params(data[m:p]).setup() 
 		case 11:
 //line parser/first_line.rl:18
  msg.RURI.Headers  = data[m:p] 
@@ -8215,7 +8215,7 @@ _match:
  via.Recvd  = data[m:p] 
 		case 26:
 //line parser/headers_via.rl:13
- via.Params = data[m1:p] 
+ via.Params = Params(data[m1:p]).setup() 
 		case 27:
 //line parser/headers_addr.rl:6
 

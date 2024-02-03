@@ -18,7 +18,7 @@ type NameAddrSpec struct {
 	HeaderName  string
 	DisplayName string
 	Addr        *URI
-	Params      string
+	Params      Params
 }
 
 // NewNameAddrSpec creates new NameAddrSpec
@@ -35,9 +35,9 @@ func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = stri
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
 func (naddr *NameAddrSpec) setURIHostport(val string) { naddr.Addr.Hostport = val }
-func (naddr *NameAddrSpec) setURIParams(val string)   { naddr.Addr.Params = val }
+func (naddr *NameAddrSpec) setURIParams(val string)   { naddr.Addr.Params = Params(val).setup() }
 func (naddr *NameAddrSpec) setURIHeaders(val string)  { naddr.Addr.Headers = val }
-func (naddr *NameAddrSpec) setParam(_, val string)    { naddr.Params = val }
+func (naddr *NameAddrSpec) setParam(_, val string)    { naddr.Params = Params(val).setup() }
 
 // NameAddr headers From and To
 type NameAddr struct {
@@ -63,7 +63,7 @@ func (naddr *NameAddr) String() string {
 		hdr += naddr.DisplayName + " "
 	}
 
-	hdr += "<" + naddr.Addr.String() + ">" + naddr.Params
+	hdr += "<" + naddr.Addr.String() + ">" + naddr.Params.String()
 
 	return hdr
 }
@@ -78,7 +78,7 @@ func (naddr *NameAddr) setParam(name, val string) {
 	case "tag":
 		naddr.Tag = val
 	case "params":
-		naddr.Params = val
+		naddr.Params = Params(val).setup()
 	}
 }
 
@@ -116,7 +116,7 @@ func (cnt *HeaderContact) String() string {
 		hdr += cnt.DisplayName + " "
 	}
 
-	hdr += "<" + cnt.Addr.String() + ">" + cnt.Params
+	hdr += "<" + cnt.Addr.String() + ">" + cnt.Params.String()
 
 	if cnt.Next != nil {
 		hdr += "," + cnt.Next.String()
@@ -132,7 +132,7 @@ func (cnt *HeaderContact) setParam(name, val string) {
 	case "expires":
 		cnt.Expires = val
 	case "params":
-		cnt.Params = val
+		cnt.Params = Params(val).setup()
 	}
 }
 
@@ -169,7 +169,7 @@ func (r *Route) String() string {
 	if len(r.DisplayName) > 0 {
 		hdr += r.DisplayName
 	}
-	hdr += "<" + r.Addr.String() + ">" + r.Params
+	hdr += "<" + r.Addr.String() + ">" + r.Params.String()
 
 	if r.Next != nil {
 		hdr += "," + r.Next.String()

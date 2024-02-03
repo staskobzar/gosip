@@ -16,7 +16,7 @@ func TestParseContactHeaders(t *testing.T) {
 		assert.Equal(t, "Contact", cnt.HeaderName)
 		assert.Equal(t, "\"Bob C\"", cnt.DisplayName)
 		assert.Equal(t, "sip:bob@192.0.2.4", cnt.Addr.String())
-		assert.Equal(t, ";q=0.5;foo=bar;expires=1800", cnt.Params)
+		assert.Equal(t, "q=0.5;foo=bar;expires=1800", cnt.Params.str())
 		assert.Equal(t, "0.5", cnt.Q)
 		assert.Equal(t, "1800", cnt.Expires)
 		assert.Nil(t, cnt.Next)
@@ -27,7 +27,7 @@ func TestParseContactHeaders(t *testing.T) {
 		msg, err := Parse(toMsg([]string{hdr}))
 		assert.Nil(t, err)
 		cnt := msg.Find(HContact).(*HeaderContact)
-		assert.Equal(t, "*", cnt.Params)
+		assert.Equal(t, "*", cnt.Params.str())
 	})
 
 	t.Run("linked header", func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestParseContactHeaders(t *testing.T) {
 		cnt := msg.Find(HContact).(*HeaderContact)
 		assert.Equal(t, "m", cnt.HeaderName)
 		assert.Equal(t, "sip:100@192.0.2.4", cnt.Addr.String())
-		assert.Equal(t, "", cnt.Params)
+		assert.Equal(t, "", cnt.Params.String())
 
 		cnt = cnt.Next
 		assert.Equal(t, "sip:100@10.0.0.4:4555", cnt.Addr.String())
@@ -80,13 +80,13 @@ func TestParseFromToHeader(t *testing.T) {
 		assert.Equal(t, `"Alice Home"`, to.DisplayName)
 		assert.Equal(t, "sip:alice@biloxi.com", to.Addr.String())
 		assert.Equal(t, "ff00aa", to.Tag)
-		assert.Equal(t, ";user=phone;tag=ff00aa", to.Params)
+		assert.Equal(t, "user=phone;tag=ff00aa", to.Params.str())
 
 		assert.Equal(t, "From", from.HeaderName)
 		assert.Equal(t, "Bob", from.DisplayName)
 		assert.Equal(t, "sip:bob@biloxi.com", from.Addr.String())
 		assert.Equal(t, "456248", from.Tag)
-		assert.Equal(t, ";tag=456248;day=monday;free", from.Params)
+		assert.Equal(t, "tag=456248;day=monday;free", from.Params.str())
 	})
 
 	t.Run("fail when more then one To header", func(t *testing.T) {
@@ -136,17 +136,17 @@ func TestParseRoutingHeaders(t *testing.T) {
 
 		assert.Equal(t, "Record-Route", r.HeaderName)
 		assert.Equal(t, "sip:h2.domain.com;lr", r.Addr.String())
-		assert.Equal(t, "", r.Params)
+		assert.Equal(t, "", r.Params.String())
 		assert.NotNil(t, r.Next)
 
 		r = r.Next
 		assert.Equal(t, "sip:dd1.pbx.com", r.Addr.String())
-		assert.Equal(t, ";user=pbx", r.Params)
+		assert.Equal(t, "user=pbx", r.Params.str())
 		assert.NotNil(t, r.Next)
 
 		r = r.Next
 		assert.Equal(t, "sips:dd2.pbx.com", r.Addr.String())
-		assert.Equal(t, "", r.Params)
+		assert.Equal(t, "", r.Params.String())
 		assert.Nil(t, r.Next)
 	})
 
@@ -162,12 +162,12 @@ func TestParseRoutingHeaders(t *testing.T) {
 
 		assert.Equal(t, "Route", r.HeaderName)
 		assert.Equal(t, "sip:s1.pbx.com;lr", r.Addr.String())
-		assert.Equal(t, "", r.Params)
+		assert.Equal(t, "", r.Params.String())
 		assert.NotNil(t, r.Next)
 
 		r = r.Next
 		assert.Equal(t, "sip:h100.sip.com:5060", r.Addr.String())
-		assert.Equal(t, ";now", r.Params)
+		assert.Equal(t, "now", r.Params.str())
 		assert.Nil(t, r.Next)
 	})
 }
@@ -185,15 +185,15 @@ func TestRouteString(t *testing.T) {
 			HeaderName:  "Record-Route",
 			DisplayName: "\"PBX f1\"",
 			Addr:        &URI{Scheme: "sip", Hostport: "10.0.0.1"},
-			Params:      ";replica=true",
+			Params:      Params("replica=true"),
 		}}, "Record-Route: \"PBX f1\"<sip:10.0.0.1>;replica=true"},
 		`route with linked header`: {
 			&Route{
 				NameAddrSpec: NameAddrSpec{
 					HeaderName: "Record-Route",
-					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: "lr"},
+					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: Params("lr")},
 				},
-				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: "lr"}}},
+				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: Params("lr")}}},
 			}, "Record-Route: <sip:p1.sip.com;lr>,<sips:p2.sip.com;lr>",
 		},
 		`route with two linked header`: {
@@ -226,7 +226,7 @@ func TestFromToString(t *testing.T) {
 				HeaderName:  "From",
 				DisplayName: "Alice",
 				Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
-				Params:      ";tag=88sja8x",
+				Params:      Params("tag=88sja8x"),
 			}},
 			"From: Alice <sip:alice@atlanta.com>;tag=88sja8x",
 		},
@@ -234,7 +234,7 @@ func TestFromToString(t *testing.T) {
 			&NameAddr{NameAddrSpec: NameAddrSpec{
 				HeaderName: "f",
 				Addr:       &URI{Scheme: "sip", Userinfo: "+12125551212", Hostport: "server.phone2net.com"},
-				Params:     ";tag=887s;user=bob",
+				Params:     Params("tag=887s;user=bob"),
 			}},
 			"f: <sip:+12125551212@server.phone2net.com>;tag=887s;user=bob",
 		},
@@ -261,14 +261,14 @@ func TestHeaderContactString(t *testing.T) {
 			&HeaderContact{NameAddrSpec: NameAddrSpec{
 				HeaderName: "Contact",
 				Addr:       &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
-				Params:     ";expires=3600",
+				Params:     Params("expires=3600"),
 			}},
 			"Contact: <sip:alice@atlanta.com>;expires=3600",
 		},
 		{
 			&HeaderContact{NameAddrSpec: NameAddrSpec{
 				HeaderName: "Contact",
-				Params:     "*",
+				Params:     Params("*"),
 			}},
 			"Contact: *",
 		},
@@ -276,7 +276,7 @@ func TestHeaderContactString(t *testing.T) {
 			&HeaderContact{NameAddrSpec: NameAddrSpec{
 				HeaderName:  "m",
 				DisplayName: "Caller",
-				Addr:        &URI{Scheme: "sip", Userinfo: "caller", Hostport: "u1.privspace.com", Params: "transport=UDP"},
+				Addr:        &URI{Scheme: "sip", Userinfo: "caller", Hostport: "u1.privspace.com", Params: Params("transport=UDP")},
 			}},
 			"m: Caller <sip:caller@u1.privspace.com;transport=UDP>",
 		},
@@ -286,17 +286,17 @@ func TestHeaderContactString(t *testing.T) {
 					HeaderName:  "Contact",
 					DisplayName: "\"Mr. Watson\"",
 					Addr:        &URI{Scheme: "sip", Userinfo: "watson", Hostport: "ch.bell.com"},
-					Params:      ";q=0.7; expires=3600",
+					Params:      Params("q=0.7; expires=3600"),
 				},
 				Next: &HeaderContact{
 					NameAddrSpec: NameAddrSpec{
 						DisplayName: "Watson",
 						Addr:        &URI{Scheme: "sips", Userinfo: "watson", Hostport: "bell.com"},
-						Params:      " ;q=0.1",
+						Params:      Params("q=0.1"),
 					},
 				},
 			},
-			"Contact: \"Mr. Watson\" <sip:watson@ch.bell.com>;q=0.7; expires=3600,Watson <sips:watson@bell.com> ;q=0.1",
+			"Contact: \"Mr. Watson\" <sip:watson@ch.bell.com>;q=0.7; expires=3600,Watson <sips:watson@bell.com>;q=0.1",
 		},
 	}
 

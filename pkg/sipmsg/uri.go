@@ -1,25 +1,39 @@
 package sipmsg
 
+import (
+	"bytes"
+)
+
 // URI represents SIP URI structure
 type URI struct {
 	Scheme   string
 	Userinfo string
 	Hostport string
-	Params   string
+	Params   Params
 	Headers  string
 }
 
+// String representation of URI
 func (uri *URI) String() string {
-	addr := uri.Scheme + ":"
+	buf := bytes.NewBuffer(make([]byte, 0, 255))
+	buf.WriteString(uri.Scheme)
+	buf.WriteByte(':')
+
 	if len(uri.Userinfo) > 0 {
-		addr += uri.Userinfo + "@"
+		buf.WriteString(uri.Userinfo)
+		buf.WriteByte('@')
 	}
-	addr += uri.Hostport
+
+	buf.WriteString(uri.Hostport)
+
 	if len(uri.Params) > 0 {
-		addr += ";" + uri.Params
+		buf.WriteString(uri.Params.String())
 	}
+
 	if len(uri.Headers) > 0 {
-		addr += "?" + uri.Headers
+		buf.WriteByte('?')
+		buf.WriteString(uri.Headers)
 	}
-	return addr
+
+	return buf.String()
 }
