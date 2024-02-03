@@ -15,7 +15,7 @@ func (p Params) Add(key, val string) Params {
 		return p
 	}
 
-	buf := bytes.NewBufferString(string(p))
+	buf := bytes.NewBufferString(p.str())
 	p.bufAdd(buf, key, val)
 
 	return Params(buf.String())
@@ -25,14 +25,14 @@ func (p Params) Add(key, val string) Params {
 // the single element value. It replaces any existing
 // values associated with key.
 func (p Params) Set(key, val string) Params {
-	if len(p) == 0 || len(key) == 0 {
+	if p.Len() == 0 || len(key) == 0 {
 		return p
 	}
 
 	buf := p.makeBuf(key, val)
 
 	for _, pt := range p.split() {
-		prm := string(p[pt[0]:pt[1]])
+		prm := p.sub(pt[0], pt[1])
 		if prm == key && len(val) > 0 {
 			p.bufAdd(buf, key, val)
 			continue
@@ -50,13 +50,13 @@ func (p Params) Set(key, val string) Params {
 
 // Del deletes parameters by key
 func (p Params) Del(key string) Params {
-	if len(p) == 0 || len(key) == 0 {
+	if p.Len() == 0 || len(key) == 0 {
 		return p
 	}
 	buf := p.makeBuf("", "")
 
 	for _, pt := range p.split() {
-		prm := string(p[pt[0]:pt[1]])
+		prm := p.sub(pt[0], pt[1])
 		if prm == key || strings.HasPrefix(prm, key+"=") {
 			continue
 		}
@@ -69,11 +69,11 @@ func (p Params) Del(key string) Params {
 // Get gets the first value associated with the given key
 // TODO: case insensitive
 func (p Params) Get(key string) (string, bool) {
-	if len(p) == 0 || len(key) == 0 {
+	if p.Len() == 0 || len(key) == 0 {
 		return "", false
 	}
 	for _, pt := range p.split() {
-		prm := string(p[pt[0]:pt[1]])
+		prm := p.sub(pt[0], pt[1])
 		if prm == key {
 			return "", true
 		}
@@ -98,12 +98,14 @@ func (p Params) String() string {
 
 func (p Params) str() string { return string(p) }
 
+func (p Params) sub(x, y int) string { return string(p[x:y]) }
+
 // setup prepares parameters string
 // it will trim any space or semicolon on the left
 // it is a bit faster then built-in go func
 // strings.TrimLeft(input, " ;")
 func (p Params) setup() Params {
-	if len(p) == 0 {
+	if p.Len() == 0 {
 		return p
 	}
 	idx := 0
