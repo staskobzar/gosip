@@ -107,7 +107,7 @@ func TestParseViaHeaders(t *testing.T) {
 	})
 }
 
-func TestHeaderViaString(t *testing.T) {
+func TestHeaderViaStringLen(t *testing.T) {
 	tests := map[string]struct {
 		via  *HeaderVia
 		want string
@@ -158,6 +158,7 @@ func TestHeaderViaString(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.want, tc.via.String())
+			assert.Equal(t, len(tc.want), tc.via.Len())
 		})
 	}
 }
@@ -170,6 +171,8 @@ func BenchmarkHeaderViaString(b *testing.B) {
 			Next: &HeaderVia{Proto: "SIP/2.0/", Transp: "UDP", Host: "10.1.1.3", Params: "branch=z9Hf.0"},
 		},
 	}
+
+	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
 		_ = via.String()

@@ -4,7 +4,6 @@ import (
 	"gosip/pkg/sip"
 	"slices"
 	"strconv"
-	"strings"
 )
 
 // Message represence SIP request or response messager
@@ -173,23 +172,46 @@ func (msg *Message) FindByNameAll(name string) Headers {
 	return msg.findAll(func(h AnyHeader) bool { return h.Name() == name })
 }
 
-// String return Message as string
-func (msg *Message) String() string {
-	buf := make([]string, 0, msg.HLen()+1)
-	buf = append(buf, msg.firstLine())
+func (msg *Message) Len() int {
+	crln := 2
+	l := 9 // "SIP/2.0" + spaces
+	if msg.t == HRequest {
+		l += len(msg.Method) + msg.RURI.Len()
+	} else {
+		l += len(msg.Code) + len(msg.Reason)
+	}
+	l += crln
 
 	for _, hdr := range msg.Headers {
-		buf = append(buf, hdr.String())
+		l += hdr.Len() + crln
 	}
-
-	return strings.Join(buf, "\r\n") + "\r\n\r\n" + msg.Body
+	return l + crln + len(msg.Body)
 }
 
-func (msg *Message) firstLine() string {
-	if msg.t == HRequest {
-		return msg.Method + " " + msg.RURI.String() + " SIP/2.0"
+// String return Message as string
+func (msg *Message) String() string {
+	buf := NewStringer(msg.Len())
+
+	msg.firstLine(buf)
+
+	for _, hdr := range msg.Headers {
+		hdr.Stringify(buf)
+		buf.Print("\r\n")
 	}
-	return "SIP/2.0 " + msg.Code + " " + msg.Reason
+
+	buf.Print("\r\n", msg.Body)
+
+	return buf.String()
+}
+
+func (msg *Message) firstLine(buf *Stringer) {
+	if msg.IsResponse() {
+		buf.Print("SIP/2.0 ", msg.Code, " ", msg.Reason, "\r\n")
+		return
+	}
+	buf.Print(msg.Method, " ")
+	msg.RURI.Stringify(buf)
+	buf.Print(" SIP/2.0\r\n")
 }
 
 func (msg *Message) find(match func(h AnyHeader) bool) AnyHeader {

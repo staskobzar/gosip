@@ -20,6 +20,7 @@ func TestParseContactHeaders(t *testing.T) {
 		assert.Equal(t, "0.5", cnt.Q)
 		assert.Equal(t, "1800", cnt.Expires)
 		assert.Nil(t, cnt.Next)
+		assert.Equal(t, len(hdr), cnt.Len())
 	})
 
 	t.Run("start value", func(t *testing.T) {
@@ -28,6 +29,7 @@ func TestParseContactHeaders(t *testing.T) {
 		assert.Nil(t, err)
 		cnt := msg.Find(HContact).(*HeaderContact)
 		assert.Equal(t, "*", cnt.Params.str())
+		assert.Equal(t, len(hdr), cnt.Len())
 	})
 
 	t.Run("linked header", func(t *testing.T) {
@@ -48,6 +50,8 @@ func TestParseContactHeaders(t *testing.T) {
 		assert.Equal(t, "sip:100@[2041:0:140F::875B:131B]", cnt.Addr.String())
 		assert.Equal(t, "0.8", cnt.Q)
 		assert.Nil(t, cnt.Next)
+		assert.Equal(t, len(hdr)-1, // parse with space between contacts but stringify without
+			msg.Find(HContact).(*HeaderContact).Len())
 	})
 
 	t.Run("multiple headers", func(t *testing.T) {
@@ -81,12 +85,14 @@ func TestParseFromToHeader(t *testing.T) {
 		assert.Equal(t, "sip:alice@biloxi.com", to.Addr.String())
 		assert.Equal(t, "ff00aa", to.Tag)
 		assert.Equal(t, "user=phone;tag=ff00aa", to.Params.str())
+		assert.Equal(t, len(to.String()), to.Len())
 
 		assert.Equal(t, "From", from.HeaderName)
 		assert.Equal(t, "Bob", from.DisplayName)
 		assert.Equal(t, "sip:bob@biloxi.com", from.Addr.String())
 		assert.Equal(t, "456248", from.Tag)
 		assert.Equal(t, "tag=456248;day=monday;free", from.Params.str())
+		assert.Equal(t, len(from.String()), from.Len())
 	})
 
 	t.Run("fail when more then one To header", func(t *testing.T) {
@@ -133,6 +139,7 @@ func TestParseRoutingHeaders(t *testing.T) {
 		list := msg.FindAll(HRecordRoute)
 		assert.Equal(t, 3, list.Len())
 		r := list[1].(*Route)
+		assert.Equal(t, len(r.String()), r.Len())
 
 		assert.Equal(t, "Record-Route", r.HeaderName)
 		assert.Equal(t, "sip:h2.domain.com;lr", r.Addr.String())
@@ -159,6 +166,7 @@ func TestParseRoutingHeaders(t *testing.T) {
 		list := msg.FindAll(HRoute)
 		assert.Equal(t, 2, list.Len())
 		r := list[0].(*Route)
+		assert.Equal(t, len(r.String()), r.Len())
 
 		assert.Equal(t, "Route", r.HeaderName)
 		assert.Equal(t, "sip:s1.pbx.com;lr", r.Addr.String())
@@ -186,7 +194,7 @@ func TestRouteString(t *testing.T) {
 			DisplayName: "\"PBX f1\"",
 			Addr:        &URI{Scheme: "sip", Hostport: "10.0.0.1"},
 			Params:      Params("replica=true"),
-		}}, "Record-Route: \"PBX f1\"<sip:10.0.0.1>;replica=true"},
+		}}, "Record-Route: \"PBX f1\" <sip:10.0.0.1>;replica=true"},
 		`route with linked header`: {
 			&Route{
 				NameAddrSpec: NameAddrSpec{

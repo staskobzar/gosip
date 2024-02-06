@@ -121,8 +121,14 @@ func TestParamsGet(t *testing.T) {
 			"ttl=255;user=ip;lr;maddr=10.0.0.1", "user", "ip", true},
 		`found in the beginning`: {
 			"ttl=255;user=ip;lr;maddr=10.0.0.1", "ttl", "255", true},
-		`param set without value`: {
+		`param without value`: {
 			"ttl=255;user=ip;lr;maddr=10.0.0.1", "lr", "", true},
+		`param without value case insensetive`: {
+			"ttl=255;user=ip;lr;maddr=10.0.0.1", "Lr", "", true},
+		`case insensitive with value`: {
+			"ttl=255;user=ip;lr;maddr=10.0.0.1", "TTL", "255", true},
+		`match param with empty value`: {
+			"ttl=255;user=;lr;maddr=10.0.0.1", "User", "", true},
 	}
 
 	for name, tt := range tests {

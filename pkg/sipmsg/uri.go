@@ -1,9 +1,5 @@
 package sipmsg
 
-import (
-	"bytes"
-)
-
 // URI represents SIP URI structure
 type URI struct {
 	Scheme   string
@@ -15,25 +11,46 @@ type URI struct {
 
 // String representation of URI
 func (uri *URI) String() string {
-	buf := bytes.NewBuffer(make([]byte, 0, 255))
-	buf.WriteString(uri.Scheme)
-	buf.WriteByte(':')
+	buf := NewStringer(uri.Len())
+	uri.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify puts uri as a string into Stringer buffer
+func (uri *URI) Stringify(buf *Stringer) {
+	buf.Print(uri.Scheme, ":")
 
 	if len(uri.Userinfo) > 0 {
-		buf.WriteString(uri.Userinfo)
-		buf.WriteByte('@')
+		buf.Print(uri.Userinfo, "@")
 	}
 
-	buf.WriteString(uri.Hostport)
+	buf.Print(uri.Hostport)
 
 	if len(uri.Params) > 0 {
-		buf.WriteString(uri.Params.String())
+		buf.Print(uri.Params.String())
 	}
 
 	if len(uri.Headers) > 0 {
-		buf.WriteByte('?')
-		buf.WriteString(uri.Headers)
+		buf.Print("?", uri.Headers)
+	}
+}
+
+// Len returns length of the URI string
+func (uri *URI) Len() int {
+	l := len(uri.Scheme) + 1 // scheme semicolon
+
+	if len(uri.Userinfo) > 0 {
+		l += len(uri.Userinfo) + 1
 	}
 
-	return buf.String()
+	l += len(uri.Hostport)
+
+	if uri.Params.Len() > 0 {
+		l += uri.Params.Len() + 1
+	}
+
+	if len(uri.Headers) > 0 {
+		l += len(uri.Headers) + 1
+	}
+	return l
 }

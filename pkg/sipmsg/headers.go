@@ -56,9 +56,11 @@ const (
 
 // AnyHeader interface for any SIP header in Message
 type AnyHeader interface {
-	Type() HType
+	Len() int
 	Name() string
 	String() string
+	Stringify(*Stringer)
+	Type() HType
 }
 
 // Headers list
@@ -75,17 +77,31 @@ type HeaderGeneric struct {
 }
 
 // Type returns HVia type
-// @impl anyHeader interface
+// @impl AnyHeader interface
 func (hg *HeaderGeneric) Type() HType { return hg.T }
 
 // Name returns header name as string
-// @impl anyHeader interface
+// @impl AnyHeader interface
 func (hg *HeaderGeneric) Name() string { return hg.HeaderName }
 
 // String method to build string representation
-// @impl anyHeader interface
+// @impl AnyHeader interface
 func (hg *HeaderGeneric) String() string {
-	return hg.HeaderName + ": " + hg.Value
+	buf := NewStringer(hg.Len())
+	hg.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify puts HeaderGeneric as a string into Stringer buffer
+// @impl AnyHeader interface
+func (hg *HeaderGeneric) Stringify(buf *Stringer) {
+	buf.Print(hg.HeaderName, ": ", hg.Value)
+}
+
+// Len returns size of the HeaderGeneric length as a string
+// @impl AnyHeader interface
+func (hg *HeaderGeneric) Len() int {
+	return len(hg.HeaderName) + len(hg.Value) + 2
 }
 
 // HeaderVia SIP Via header with a pointer to linked
@@ -120,26 +136,52 @@ func (via *HeaderVia) LinkNext() *HeaderVia {
 
 // String method to build string representation
 func (via *HeaderVia) String() string {
-	var hdr string
+	buf := NewStringer(via.Len())
+	via.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify push Via header as a string into Stringer buffer
+func (via *HeaderVia) Stringify(buf *Stringer) {
 	if len(via.HeaderName) > 0 {
-		hdr = via.HeaderName + ": "
+		buf.Print(via.HeaderName, ": ")
 	}
-	hdr += via.Proto + via.Transp + " " + via.Host
+	buf.Print(via.Proto, via.Transp, " ", via.Host)
 
 	if len(via.Port) > 0 {
-		hdr += ":" + via.Port
+		buf.Print(":", via.Port)
 	}
 
 	if via.Params.Len() > 0 {
-		hdr += via.Params.String()
+		buf.Print(via.Params.String())
 	}
 
 	if via.Next != nil {
 		// call linked via build
-		return hdr + "," + via.Next.String()
+		buf.Print(",")
+		via.Next.Stringify(buf)
+	}
+}
+
+// Len returns size of the Via header as a string
+func (via *HeaderVia) Len() int {
+	l := 0
+	if len(via.HeaderName) > 0 {
+		l += len(via.HeaderName) + 2 // name and colon with space
 	}
 
-	return hdr
+	l += len(via.Proto) + len(via.Transp) + len(via.Host) + 1
+
+	if len(via.Port) > 0 {
+		l += len(via.Port) + 1 // port and colon
+	}
+	if via.Params.Len() > 0 {
+		l += via.Params.Len() + 1 // semi and params
+	}
+	if via.Next != nil {
+		return l + via.Next.Len() + 1 // coma and extra via header
+	}
+	return l
 }
 
 // Type returns HVia type

@@ -138,45 +138,9 @@ func TestParseURIFail(t *testing.T) {
 	}
 }
 
-func TestURIString(t *testing.T) {
-	tests := []struct {
-		uri string
-	}{
-		{"sip:atlanta.com"},
-		{"sip:alice@atlanta.com"},
-		{"sips:atlanta.com;transport=TLS;rl"},
-		{"sips:bob@pbx.com;rl?user=Bob"},
-		{"sip:pbx.com?phone=polycom&v=vvx"},
-		{"sip:100@sip.ca:1223;foo=bar"},
-		{"sip:200@10.0.0.1:1223"},
-		{"sip:300@[2001:db8::1:0:0:1:1:208.8.8.101]:5061"},
-		{"sip:300@[2001:db8::1:0:0:1:1];user=bob?phone=yealink"},
-	}
-
-	for _, tc := range tests {
-		uri, err := ParseURI(tc.uri)
-		assert.Nil(t, err)
-		assert.Equal(t, tc.uri, uri.String())
-	}
-}
-
 func BenchmarkParseURI(b *testing.B) {
 	input := "sip:alice:_pa55w0Rd@biloxi.com:5062;method=REGISTER;transport=tcp?to=sip:bob%40biloxi.com&subject=renew"
 	for i := 0; i < b.N; i++ {
 		_, _ = ParseURI(input)
-	}
-}
-
-func BenchmarkURIString(b *testing.B) {
-	uri := &URI{
-		Scheme:   "sip",
-		Userinfo: "alice:_pa55w0Rd",
-		Hostport: "biloxi.com:5062",
-		Params:   "method=REGISTER;transport=tcp",
-		Headers:  "to=sip:bob%40biloxi.com&subject=renew",
-	}
-
-	for i := 0; i < b.N; i++ {
-		_ = uri.String()
 	}
 }

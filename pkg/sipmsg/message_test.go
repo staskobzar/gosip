@@ -251,6 +251,53 @@ func TestMessageRequestNone200Ack(t *testing.T) {
 	assert.Equal(t, wantAck, ack.String())
 }
 
+func TestMessageLen(t *testing.T) {
+	tests := map[string]string{
+		`request no body`: "ACK sip:bob@biloxi.example.com SIP/2.0\r\n" +
+			"Via: SIP/2.0/UDP biloxi.com;branch=z9hG4bKnashds\r\n" +
+			"Max-Forwards: 70\r\n" +
+			"From: Alice <sip:alice@atlanta.example.com>;tag=9fxced76sl\r\n" +
+			"To: Bob <sip:bob@biloxi.example.com>;tag=3flal12sf\r\n" +
+			"Call-ID: 3848276298220188511@atlanta.example.com\r\n" +
+			"CSeq: 1 ACK\r\n\r\n",
+		`request with body`: "ACK sip:bob@biloxi.example.com SIP/2.0\r\n" +
+			"From: Alice <sip:alice@atlanta.example.com>;tag=9fxced76sl\r\n" +
+			"To: Bob <sip:bob@biloxi.example.com>;tag=3flal12sf\r\n" +
+			"Call-ID: 3848276298220188511@atlanta.example.com\r\n" +
+			"CSeq: 1 ACK\r\n\r\nv=0\r\no=alice 2890844526 2890844526 IN IP4 client.atlanta.example.com\r\n" +
+			"s=\r\nc=IN IP4 client.atlanta.example.com\r\nt=0 0\r\n" +
+			"m=audio 49170 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n",
+		`response no body`: "SIP/2.0 200 OK\r\n" +
+			"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7;received=192.0.2.4\r\n" +
+			"Route: <sip:alice@atlanta.com>,<sip:bob@biloxi.com>\r\n" +
+			"To: Bob <sip:bob@biloxi.com>;tag=2493k59kd\r\n" +
+			"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
+			"Call-ID: 843817637684230@998sdasdh09\r\n" +
+			"CSeq: 1826 REGISTER\r\n" +
+			"Contact: <sip:bob@192.0.2.4>\r\n" +
+			"Expires: 7200\r\n" +
+			"Content-Length: 0\r\n\r\n",
+		`response with body`: "SIP/2.0 200 OK\r\n" +
+			"To: Bob <sip:bob@biloxi.com>;tag=2493k59kd\r\n" +
+			"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
+			"Call-ID: 843817637684230@998sdasdh09\r\n" +
+			"CSeq: 1826 REGISTER\r\n" +
+			"Contact: <sip:bob@192.0.2.4>\r\n" +
+			"Expires: 7200\r\n" +
+			"Content-Length: 0\r\n\r\nv=0\r\no=alice 2890844526 2890844526 IN IP4 client.atlanta.example.com\r\n" +
+			"s=\r\nc=IN IP4 client.atlanta.example.com\r\nt=0 0\r\n" +
+			"m=audio 49170 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n",
+	}
+
+	for name, input := range tests {
+		t.Run(name, func(t *testing.T) {
+			msg, err := Parse(input)
+			assert.Nil(t, err)
+			assert.Equal(t, len(input), msg.Len())
+		})
+	}
+}
+
 func TestMessageResponseString(t *testing.T) {
 	//nolint:goconst
 	input := "SIP/2.0 200 OK\r\n" +

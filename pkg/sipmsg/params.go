@@ -67,25 +67,28 @@ func (p Params) Del(key string) Params {
 }
 
 // Get gets the first value associated with the given key
-// TODO: case insensitive
 func (p Params) Get(key string) (string, bool) {
 	if p.Len() == 0 || len(key) == 0 {
 		return "", false
 	}
 	for _, pt := range p.split() {
 		prm := p.sub(pt[0], pt[1])
-		if prm == key {
+		if strings.EqualFold(prm, key) {
 			return "", true
 		}
 
-		if strings.HasPrefix(prm, key+"=") {
+		if len(prm) < len(key)+1 {
+			continue
+		}
+
+		if strings.EqualFold(prm[:len(key)+1], key+"=") {
 			return prm[len(key)+1:], true
 		}
 	}
 	return "", false
 }
 
-// Len returns lenght of params in bytes
+// Len returns length of params in bytes
 func (p Params) Len() int { return len(p) }
 
 // String representation of the parameters

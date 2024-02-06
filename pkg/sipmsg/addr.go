@@ -29,6 +29,24 @@ func NewNameAddrSpec(name string) NameAddrSpec {
 	}
 }
 
+// Len returns size of the NameAddrSpec length as a string
+// @impl AnyHeader interface
+func (naddr *NameAddrSpec) Len() int {
+	l := 0
+	if len(naddr.HeaderName) > 0 {
+		l += len(naddr.HeaderName) + 2
+	}
+	if len(naddr.DisplayName) > 0 {
+		l += len(naddr.DisplayName) + 1
+	}
+
+	l += naddr.Addr.Len() + 2 // wrapped in <>
+	if naddr.Params.Len() > 0 {
+		l += naddr.Params.Len() + 1
+	}
+	return l
+}
+
 // Name returns header name as string and implements AnyHeader
 func (naddr *NameAddrSpec) Name() string              { return naddr.HeaderName }
 func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = strings.TrimSpace(val) }
@@ -58,14 +76,22 @@ func NewNameAddr(t HType, name string) *NameAddr {
 // String represents NameAddr header as string
 // @impl anyHeader interface
 func (naddr *NameAddr) String() string {
-	hdr := naddr.HeaderName + ": "
+	buf := NewStringer(naddr.Len())
+	naddr.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify puts NameAddr as a string into Stringer buffer
+// @impl anyHeader interface
+func (naddr *NameAddr) Stringify(buf *Stringer) {
+	buf.Print(naddr.HeaderName, ": ")
 	if len(naddr.DisplayName) > 0 {
-		hdr += naddr.DisplayName + " "
+		buf.Print(naddr.DisplayName, " ")
 	}
 
-	hdr += "<" + naddr.Addr.String() + ">" + naddr.Params.String()
-
-	return hdr
+	buf.Print("<")
+	naddr.Addr.Stringify(buf)
+	buf.Print(">", naddr.Params.String())
 }
 
 // Type returns NameAddr type
@@ -100,29 +126,70 @@ func NewHeaderContact(name string) *HeaderContact {
 	}
 }
 
-// String represents HeaderContact header as string
-// @impl anyHeader interface
-func (cnt *HeaderContact) String() string {
-	var hdr string
+// Len returns size of the HeaderContact length as a string
+// @impl AnyHeader interface
+func (cnt *HeaderContact) Len() int {
+	l := 0
 	if len(cnt.HeaderName) > 0 {
-		hdr = cnt.HeaderName + ": "
+		l += len(cnt.HeaderName) + 2
 	}
 
 	if cnt.Params == "*" {
-		return hdr + "*"
+		return l + 1
 	}
 
 	if len(cnt.DisplayName) > 0 {
-		hdr += cnt.DisplayName + " "
+		l += len(cnt.DisplayName) + 1
 	}
 
-	hdr += "<" + cnt.Addr.String() + ">" + cnt.Params.String()
+	l += cnt.Addr.Len() + 2 // wrapping <>
+	if cnt.Params.Len() > 0 {
+		l += cnt.Params.Len() + 1 // semin + params
+	}
 
 	if cnt.Next != nil {
-		hdr += "," + cnt.Next.String()
+		return l + 1 + cnt.Next.Len() // +1 for ,
 	}
-	return hdr
+	return l
 }
+
+// String represents HeaderContact header as string
+// @impl AnyHeader interface
+func (cnt *HeaderContact) String() string {
+	buf := NewStringer(cnt.Len())
+	cnt.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify puts HeaderContact as a string into Stringer buffer
+// @impl AnyHeader interface
+func (cnt *HeaderContact) Stringify(buf *Stringer) {
+	if len(cnt.HeaderName) > 0 {
+		buf.Print(cnt.HeaderName, ": ")
+	}
+
+	if cnt.Params == "*" {
+		buf.Print("*")
+		return
+	}
+
+	if len(cnt.DisplayName) > 0 {
+		buf.Print(cnt.DisplayName, " ")
+	}
+
+	buf.Print("<")
+	cnt.Addr.Stringify(buf)
+	buf.Print(">", cnt.Params.String())
+
+	if cnt.Next != nil {
+		buf.Print(",")
+		cnt.Next.Stringify(buf)
+	}
+}
+
+// Type returns HContact type
+// @impl AnyHeader interface
+func (cnt *HeaderContact) Type() HType { return HContact }
 
 // override method from NameAddrSpec
 func (cnt *HeaderContact) setParam(name, val string) {
@@ -135,10 +202,6 @@ func (cnt *HeaderContact) setParam(name, val string) {
 		cnt.Params = Params(val).setup()
 	}
 }
-
-// Type returns HContact type
-// @impl anyHeader interface
-func (cnt *HeaderContact) Type() HType { return HContact }
 
 // Route structure that represence Route or Record-Route headers
 type Route struct {
@@ -156,25 +219,44 @@ func NewRoute(t HType, name string) *Route {
 	}
 }
 
+// Len returns size of the HeaderContact length as a string
+// @impl AnyHeader interface
+func (r *Route) Len() int {
+	l := r.NameAddrSpec.Len()
+	if r.Next != nil {
+		return l + 1 + r.Next.Len()
+	}
+	return l
+}
+
 // String represents Route header as string
 // @impl anyHeader interface
 func (r *Route) String() string {
-	var hdr string
+	buf := NewStringer(r.Len())
+	r.Stringify(buf)
+	return buf.String()
+}
+
+// Stringify puts HeaderContact as a string into Stringer buffer
+// @impl AnyHeader interface
+func (r *Route) Stringify(buf *Stringer) {
 	if len(r.HeaderName) > 0 {
-		hdr = r.HeaderName + ": "
+		buf.Print(r.HeaderName, ": ")
 	}
 
-	// NOTE: ANBF from RFC3261 provides display name
+	// NOTE: ANBF in RFC3261 provides display name
 	// and parameters but I have not seen it match in real life
 	if len(r.DisplayName) > 0 {
-		hdr += r.DisplayName
+		buf.Print(r.DisplayName, " ")
 	}
-	hdr += "<" + r.Addr.String() + ">" + r.Params.String()
+	buf.Print("<")
+	r.Addr.Stringify(buf)
+	buf.Print(">", r.Params.String())
 
 	if r.Next != nil {
-		hdr += "," + r.Next.String()
+		buf.Print(",")
+		r.Next.Stringify(buf)
 	}
-	return hdr
 }
 
 // Type returns Route type
