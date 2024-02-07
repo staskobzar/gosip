@@ -114,6 +114,35 @@ func TestParseFromToHeader(t *testing.T) {
 		assert.NotNil(t, err)
 		assert.ErrorContains(t, err, "more then one From headers found")
 	})
+
+	t.Run("set tag", func(t *testing.T) {
+		t.Run("when no tag set", func(t *testing.T) {
+			to := &NameAddr{NameAddrSpec: NameAddrSpec{
+				HeaderName:  "From",
+				DisplayName: "Alice",
+				Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+			}}
+			assert.Empty(t, to.Tag)
+			assert.Empty(t, to.Params)
+			to.SetTag("ff00aaz")
+			assert.Equal(t, "ff00aaz", to.Tag)
+			assert.Equal(t, "tag=ff00aaz", string(to.Params))
+		})
+
+		t.Run("when has tag set", func(t *testing.T) {
+			to := &NameAddr{NameAddrSpec: NameAddrSpec{
+				HeaderName:  "From",
+				DisplayName: "Alice",
+				Addr:        &URI{Scheme: "sip", Userinfo: "alice", Hostport: "atlanta.com"},
+				Params:      Params("ttl=123;tag=88sja8x;user=ip"),
+			},
+				Tag: "88sja8x",
+			}
+			to.SetTag("88sja8x")
+			assert.Equal(t, "88sja8x", to.Tag)
+			assert.Equal(t, "ttl=123;tag=88sja8x;user=ip", string(to.Params))
+		})
+	})
 }
 
 func TestParseRoutingHeaders(t *testing.T) {

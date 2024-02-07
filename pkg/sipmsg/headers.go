@@ -101,7 +101,7 @@ func (hg *HeaderGeneric) Stringify(buf *Stringer) {
 // Len returns size of the HeaderGeneric length as a string
 // @impl AnyHeader interface
 func (hg *HeaderGeneric) Len() int {
-	return len(hg.HeaderName) + len(hg.Value) + 2
+	return len(hg.HeaderName) + len(hg.Value) + 2 // +2 is for : and space after name
 }
 
 // HeaderVia SIP Via header with a pointer to linked

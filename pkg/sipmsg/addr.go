@@ -48,7 +48,18 @@ func (naddr *NameAddrSpec) Len() int {
 }
 
 // Name returns header name as string and implements AnyHeader
-func (naddr *NameAddrSpec) Name() string              { return naddr.HeaderName }
+func (naddr *NameAddrSpec) Name() string { return naddr.HeaderName }
+
+// PrintAddr print to buffer name adders as <address>;params
+func (naddr *NameAddrSpec) PrintAddr(buf *Stringer) {
+	if len(naddr.DisplayName) > 0 {
+		buf.Print(naddr.DisplayName, " ")
+	}
+	buf.Print("<")
+	naddr.Addr.Stringify(buf)
+	buf.Print(">", naddr.Params.String())
+}
+
 func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = strings.TrimSpace(val) }
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
@@ -73,6 +84,16 @@ func NewNameAddr(t HType, name string) *NameAddr {
 	}
 }
 
+// SetTag sets tag parameter to NameAddr header
+func (naddr *NameAddr) SetTag(tag string) {
+	naddr.Tag = tag
+	if _, ok := naddr.Params.Get("tag"); ok {
+		naddr.Params = naddr.Params.Set("tag", tag)
+		return
+	}
+	naddr.Params = naddr.Params.Add("tag", tag)
+}
+
 // String represents NameAddr header as string
 // @impl anyHeader interface
 func (naddr *NameAddr) String() string {
@@ -85,13 +106,8 @@ func (naddr *NameAddr) String() string {
 // @impl anyHeader interface
 func (naddr *NameAddr) Stringify(buf *Stringer) {
 	buf.Print(naddr.HeaderName, ": ")
-	if len(naddr.DisplayName) > 0 {
-		buf.Print(naddr.DisplayName, " ")
-	}
 
-	buf.Print("<")
-	naddr.Addr.Stringify(buf)
-	buf.Print(">", naddr.Params.String())
+	naddr.PrintAddr(buf)
 }
 
 // Type returns NameAddr type
@@ -129,23 +145,10 @@ func NewHeaderContact(name string) *HeaderContact {
 // Len returns size of the HeaderContact length as a string
 // @impl AnyHeader interface
 func (cnt *HeaderContact) Len() int {
-	l := 0
-	if len(cnt.HeaderName) > 0 {
-		l += len(cnt.HeaderName) + 2
-	}
-
 	if cnt.Params == "*" {
-		return l + 1
+		return len(cnt.HeaderName) + 3
 	}
-
-	if len(cnt.DisplayName) > 0 {
-		l += len(cnt.DisplayName) + 1
-	}
-
-	l += cnt.Addr.Len() + 2 // wrapping <>
-	if cnt.Params.Len() > 0 {
-		l += cnt.Params.Len() + 1 // semin + params
-	}
+	l := cnt.NameAddrSpec.Len()
 
 	if cnt.Next != nil {
 		return l + 1 + cnt.Next.Len() // +1 for ,
@@ -173,13 +176,7 @@ func (cnt *HeaderContact) Stringify(buf *Stringer) {
 		return
 	}
 
-	if len(cnt.DisplayName) > 0 {
-		buf.Print(cnt.DisplayName, " ")
-	}
-
-	buf.Print("<")
-	cnt.Addr.Stringify(buf)
-	buf.Print(">", cnt.Params.String())
+	cnt.PrintAddr(buf)
 
 	if cnt.Next != nil {
 		buf.Print(",")
@@ -244,14 +241,7 @@ func (r *Route) Stringify(buf *Stringer) {
 		buf.Print(r.HeaderName, ": ")
 	}
 
-	// NOTE: ANBF in RFC3261 provides display name
-	// and parameters but I have not seen it match in real life
-	if len(r.DisplayName) > 0 {
-		buf.Print(r.DisplayName, " ")
-	}
-	buf.Print("<")
-	r.Addr.Stringify(buf)
-	buf.Print(">", r.Params.String())
+	r.PrintAddr(buf)
 
 	if r.Next != nil {
 		buf.Print(",")
