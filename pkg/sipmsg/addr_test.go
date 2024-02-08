@@ -167,7 +167,7 @@ func TestParseRoutingHeaders(t *testing.T) {
 		assert.Nil(t, err)
 		list := msg.FindAll(HRecordRoute)
 		assert.Equal(t, 3, list.Len())
-		r := list[1].(*Route)
+		r := list[1].(*HeaderRoute)
 		assert.Equal(t, len(r.String()), r.Len())
 
 		assert.Equal(t, "Record-Route", r.HeaderName)
@@ -194,7 +194,7 @@ func TestParseRoutingHeaders(t *testing.T) {
 		assert.Nil(t, err)
 		list := msg.FindAll(HRoute)
 		assert.Equal(t, 2, list.Len())
-		r := list[0].(*Route)
+		r := list[0].(*HeaderRoute)
 		assert.Equal(t, len(r.String()), r.Len())
 
 		assert.Equal(t, "Route", r.HeaderName)
@@ -211,37 +211,37 @@ func TestParseRoutingHeaders(t *testing.T) {
 
 func TestRouteString(t *testing.T) {
 	tests := map[string]struct {
-		route *Route
+		route *HeaderRoute
 		want  string
 	}{
-		`simple route header`: {&Route{NameAddrSpec: NameAddrSpec{
+		`simple route header`: {&HeaderRoute{NameAddrSpec: NameAddrSpec{
 			HeaderName: "Route",
 			Addr:       &URI{Scheme: "sip", Hostport: "10.0.0.1"},
 		}}, "Route: <sip:10.0.0.1>"},
-		`with display name and params`: {&Route{NameAddrSpec: NameAddrSpec{
+		`with display name and params`: {&HeaderRoute{NameAddrSpec: NameAddrSpec{
 			HeaderName:  "Record-Route",
 			DisplayName: "\"PBX f1\"",
 			Addr:        &URI{Scheme: "sip", Hostport: "10.0.0.1"},
 			Params:      Params("replica=true"),
 		}}, "Record-Route: \"PBX f1\" <sip:10.0.0.1>;replica=true"},
 		`route with linked header`: {
-			&Route{
+			&HeaderRoute{
 				NameAddrSpec: NameAddrSpec{
 					HeaderName: "Record-Route",
 					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com", Params: Params("lr")},
 				},
-				Next: &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: Params("lr")}}},
+				Next: &HeaderRoute{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com", Params: Params("lr")}}},
 			}, "Record-Route: <sip:p1.sip.com;lr>,<sips:p2.sip.com;lr>",
 		},
 		`route with two linked header`: {
-			&Route{
+			&HeaderRoute{
 				NameAddrSpec: NameAddrSpec{
 					HeaderName: "Route",
 					Addr:       &URI{Scheme: "sip", Hostport: "p1.sip.com"},
 				},
-				Next: &Route{
+				Next: &HeaderRoute{
 					NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sips", Hostport: "p2.sip.com"}},
-					Next:         &Route{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sip", Hostport: "p3.sip.com"}}},
+					Next:         &HeaderRoute{NameAddrSpec: NameAddrSpec{Addr: &URI{Scheme: "sip", Hostport: "p3.sip.com"}}},
 				},
 			}, "Route: <sip:p1.sip.com>,<sips:p2.sip.com>,<sip:p3.sip.com>",
 		},

@@ -23,7 +23,7 @@ func Parse(data string) (*Message, error) {
 	var via *HeaderVia
 	var naddr nameAddr
 	var cnt *HeaderContact
-	var route *Route
+	var route *HeaderRoute
 
 	%%{
 		action sm     { m = p }

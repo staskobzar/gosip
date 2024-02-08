@@ -67,6 +67,7 @@ func (p Params) Del(key string) Params {
 }
 
 // Get gets the first value associated with the given key
+// case-insensitive match
 func (p Params) Get(key string) (string, bool) {
 	if p.Len() == 0 || len(key) == 0 {
 		return "", false

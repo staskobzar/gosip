@@ -200,17 +200,17 @@ func (cnt *HeaderContact) setParam(name, val string) {
 	}
 }
 
-// Route structure that represence Route or Record-Route headers
-type Route struct {
+// HeaderRoute structure that represence HeaderRoute or Record-HeaderRoute headers
+type HeaderRoute struct {
 	T HType
 	NameAddrSpec
-	Next *Route
+	Next *HeaderRoute
 }
 
 // NewRoute creates new Route header
 // parameter "t" must be HRoute or HRecordRoute
-func NewRoute(t HType, name string) *Route {
-	return &Route{
+func NewRoute(t HType, name string) *HeaderRoute {
+	return &HeaderRoute{
 		T:            t,
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
@@ -218,7 +218,7 @@ func NewRoute(t HType, name string) *Route {
 
 // Len returns size of the HeaderContact length as a string
 // @impl AnyHeader interface
-func (r *Route) Len() int {
+func (r *HeaderRoute) Len() int {
 	l := r.NameAddrSpec.Len()
 	if r.Next != nil {
 		return l + 1 + r.Next.Len()
@@ -228,7 +228,7 @@ func (r *Route) Len() int {
 
 // String represents Route header as string
 // @impl anyHeader interface
-func (r *Route) String() string {
+func (r *HeaderRoute) String() string {
 	buf := NewStringer(r.Len())
 	r.Stringify(buf)
 	return buf.String()
@@ -236,7 +236,7 @@ func (r *Route) String() string {
 
 // Stringify puts HeaderContact as a string into Stringer buffer
 // @impl AnyHeader interface
-func (r *Route) Stringify(buf *Stringer) {
+func (r *HeaderRoute) Stringify(buf *Stringer) {
 	if len(r.HeaderName) > 0 {
 		buf.Print(r.HeaderName, ": ")
 	}
@@ -251,4 +251,4 @@ func (r *Route) Stringify(buf *Stringer) {
 
 // Type returns Route type
 // @impl anyHeader interface
-func (r *Route) Type() HType { return r.T }
+func (r *HeaderRoute) Type() HType { return r.T }
