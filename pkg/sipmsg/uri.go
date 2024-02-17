@@ -2,11 +2,12 @@ package sipmsg
 
 // URI represents SIP URI structure
 type URI struct {
-	Scheme   string
-	Userinfo string
-	Hostport string
-	Params   Params
-	Headers  string
+	Scheme    string
+	Userinfo  string
+	Hostport  string
+	Params    Params
+	Transport string
+	Headers   string
 }
 
 // String representation of URI

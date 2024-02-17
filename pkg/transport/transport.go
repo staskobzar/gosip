@@ -11,10 +11,19 @@ import (
 
 const reconnTout = time.Second * 3
 
+type tTransp uint8
+
+const (
+	tNone tTransp = 0
+	tUDP  tTransp = 1 << iota
+	tTCP
+)
+
 type Manager struct {
-	sock *Store[Listener]
-	conn *Store[Conn]
-	rcv  chan Packet
+	sock    *Store[Listener]
+	conn    *Store[Conn]
+	rcv     chan Packet
+	support tTransp
 }
 
 type Listener interface {
@@ -49,8 +58,9 @@ func (mgr *Manager) ListenTCP(ctx context.Context, addrport string) error {
 	}
 
 	ln := &TCPListener{laddr: addr}
-	go mgr.listen(ctx, ln) // TODO add ctx
+	go mgr.listen(ctx, ln)
 
+	mgr.support |= tTCP
 	return nil
 }
 
@@ -61,6 +71,8 @@ func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
 	}
 	ln := &UDP{laddr: addr}
 	go mgr.listen(ctx, ln)
+
+	mgr.support |= tUDP
 	return nil
 }
 

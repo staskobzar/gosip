@@ -8,74 +8,76 @@ import (
 
 func TestParseURIValidAddresses(t *testing.T) {
 	tests := []struct {
-		input                                       string
-		scheme, userinfo, hostport, params, headers string
+		input                      string
+		scheme, userinfo, hostport string
+		params, headers, transp    string
 	}{
 		{
 			"sip:alice@atlanta.com",
-			"sip", "alice", "atlanta.com", "", "",
+			"sip", "alice", "atlanta.com", "", "", "",
 		}, {
 			"sip:alice:secretword@atlanta.com;transport=tcp",
-			"sip", "alice:secretword", "atlanta.com", "transport=tcp", "",
+			"sip", "alice:secretword", "atlanta.com", "transport=tcp", "", "tcp",
 		}, {
 			"sip:unres-d_.d!!w*'(city)'@atlanta.com",
-			"sip", "unres-d_.d!!w*'(city)'", "atlanta.com", "", "",
+			"sip", "unres-d_.d!!w*'(city)'", "atlanta.com", "", "", "",
 		}, {
 			"sips:usr+=in&d$1,2;5?with/here@atlanta.com",
-			"sips", "usr+=in&d$1,2;5?with/here", "atlanta.com", "", "",
+			"sips", "usr+=in&d$1,2;5?with/here", "atlanta.com", "", "", "",
 		}, {
-			"sip:alice%20Doe?NY:p-s_d.F!r~y*'j(U)%20%25&Y+=11$p,V@atlanta.com",
-			"sip", "alice%20Doe?NY:p-s_d.F!r~y*'j(U)%20%25&Y+=11$p,V", "atlanta.com", "", "",
+			"sip:alice%20Doe?NY:p-s_d.F!r~y*'j(U)%20%25&Y+=11$p,V@atlanta.com;TrAnsPort=CS1f",
+			"sip", "alice%20Doe?NY:p-s_d.F!r~y*'j(U)%20%25&Y+=11$p,V", "atlanta.com",
+			"TrAnsPort=CS1f", "", "CS1f",
 		}, {
 			"sips:alice@atlanta.com?subject=project%20x&priority=urgent",
-			"sips", "alice", "atlanta.com", "", "subject=project%20x&priority=urgent",
+			"sips", "alice", "atlanta.com", "", "subject=project%20x&priority=urgent", "",
 		}, {
 			"sip:+1-212-555-1212:1234@gateway.com;user=phone",
-			"sip", "+1-212-555-1212:1234", "gateway.com", "user=phone", "",
+			"sip", "+1-212-555-1212:1234", "gateway.com", "user=phone", "", "",
 		}, {
 			"sips:gateway.com",
-			"sips", "", "gateway.com", "", "",
+			"sips", "", "gateway.com", "", "", "",
 		}, {
 			"sip:alice@192.0.2.4:8899",
-			"sip", "alice", "192.0.2.4:8899", "", "",
+			"sip", "alice", "192.0.2.4:8899", "", "", "",
 		}, {
 			"sip:bob@88.123.44.56",
-			"sip", "bob", "88.123.44.56", "", "",
+			"sip", "bob", "88.123.44.56", "", "", "",
 		}, {
 			"sip:bob+carl@[fe80::9aef:5bad:992a:f54e]",
-			"sip", "bob+carl", "[fe80::9aef:5bad:992a:f54e]", "", "",
+			"sip", "bob+carl", "[fe80::9aef:5bad:992a:f54e]", "", "", "",
 		}, {
 			"sip:[2001:db8::1:0:0:1]:8899;user=phone;time=2000%2004",
-			"sip", "", "[2001:db8::1:0:0:1]:8899", "user=phone;time=2000%2004", "",
+			"sip", "", "[2001:db8::1:0:0:1]:8899", "user=phone;time=2000%2004", "", "",
 		}, {
 			"sip:john@[2001:db8::1:0:0:1:1:208.8.8.101]:5061?time=now",
-			"sip", "john", "[2001:db8::1:0:0:1:1:208.8.8.101]:5061", "", "time=now",
+			"sip", "john", "[2001:db8::1:0:0:1:1:208.8.8.101]:5061", "", "time=now", "",
 		}, {
 			"sip:atlanta.com;method=REGISTER?to=alice%40atlanta.com",
-			"sip", "", "atlanta.com", "method=REGISTER", "to=alice%40atlanta.com",
+			"sip", "", "atlanta.com", "method=REGISTER", "to=alice%40atlanta.com", "",
 		}, {
 			"sips:gateway-s1.com.?param=&foo=bar",
-			"sips", "", "gateway-s1.com.", "", "param=&foo=bar",
+			"sips", "", "gateway-s1.com.", "", "param=&foo=bar", "",
 		}, {
 			"sips:alice;day=tuesday@atlanta.com",
-			"sips", "alice;day=tuesday", "atlanta.com", "", "",
+			"sips", "alice;day=tuesday", "atlanta.com", "", "", "",
 		}, {
 			"sip:vivekg@chair-dnrc.example.com;unknownparam",
-			"sip", "vivekg", "chair-dnrc.example.com", "unknownparam", "",
+			"sip", "vivekg", "chair-dnrc.example.com", "unknownparam", "", "",
 		}, {
 			"sip:unres-d_.d!!w*'(city)':(pa0)_.-!~*'*'@[::1:199.9.9.1]:9060;foo[1]=+id",
 			"sip", "unres-d_.d!!w*'(city)':(pa0)_.-!~*'*'", "[::1:199.9.9.1]:9060",
-			"foo[1]=+id", "",
+			"foo[1]=+id", "", "",
 		}, {
 			"sips:atlanta.com;a[1-3].f&$2=z:!*%20;b[2~9]=t('l*8')&f;~!~",
-			"sips", "", "atlanta.com", "a[1-3].f&$2=z:!*%20;b[2~9]=t('l*8')&f;~!~", "",
+			"sips", "", "atlanta.com", "a[1-3].f&$2=z:!*%20;b[2~9]=t('l*8')&f;~!~", "", "",
 		}, {
 			"sip:alice@10.9.8.1:90;a[1-3]=z_%20u!?foo[1-4!3]=&[*bar](3'?r'/0)=$f:0+9",
 			"sip", "alice", "10.9.8.1:90", "a[1-3]=z_%20u!",
-			"foo[1-4!3]=&[*bar](3'?r'/0)=$f:0+9",
+			"foo[1-4!3]=&[*bar](3'?r'/0)=$f:0+9", "",
 		}, {
 			"sips:188.23.100.22:9009",
-			"sips", "", "188.23.100.22:9009", "", "",
+			"sips", "", "188.23.100.22:9009", "", "", "",
 		},
 	}
 	for _, tc := range tests {
@@ -87,6 +89,7 @@ func TestParseURIValidAddresses(t *testing.T) {
 			assert.Equal(t, tc.hostport, uri.Hostport)
 			assert.Equal(t, tc.params, uri.Params.str())
 			assert.Equal(t, tc.headers, uri.Headers)
+			assert.Equal(t, tc.transp, uri.Transport)
 		})
 	}
 }
