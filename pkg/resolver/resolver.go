@@ -105,21 +105,46 @@ func (r *Resolver) LookupNAPTR(domain string) []*NAPTR {
 func (r *Resolver) LookupSRV(target string) []*SRV {
 	logger.Log("srv request for %q", target)
 
-	srv := make([]*SRV, 0)
 	m := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeSRV)
 	for _, s := range r.conf.Servers {
 		namesrv := net.JoinHostPort(s, r.conf.Port)
 		resp, err := dns.Exchange(m, namesrv)
 		if err != nil {
-			logger.Err("failed lookup naptr at %q: %s", srv, err)
+			logger.Err("failed lookup naptr at %q: %s", namesrv, err)
 			continue
 		}
-		fmt.Printf("%#v\n", resp)
-		for _, rr := range resp.Answer {
-			fmt.Printf("%#v\n", rr)
+		srv := make([]*SRV, len(resp.Answer))
+		for i, answ := range resp.Answer {
+			rr, ok := answ.(*dns.SRV)
+			if !ok {
+				logger.Err("invalid returned record. expected SRV type")
+				return nil
+			}
+			srv[i] = &SRV{
+				Target:   rr.Target,
+				Port:     int(rr.Port),
+				Priority: int(rr.Priority),
+				Weight:   int(rr.Weight),
+			}
 		}
 		return srv
 	}
 
+	return nil
+}
+
+func (r *Resolver) LookupAddr(target string) []*SRV {
+	logger.Log("address request for %q", target)
+
+	m := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeA)
+	for _, s := range r.conf.Servers {
+		namesrv := net.JoinHostPort(s, r.conf.Port)
+		resp, err := dns.Exchange(m, namesrv)
+		if err != nil {
+			logger.Err("failed lookup naptr at %q: %s", namesrv, err)
+			continue
+		}
+		fmt.Printf("%#v\n", resp)
+	}
 	return nil
 }
