@@ -1,5 +1,5 @@
-// Package resolver provides DNS lookup for NAPTR, SRV and A/AAA records
-package resolver
+// Package dns provides DNS lookup for NAPTR, SRV and A/AAA records
+package dns
 
 import (
 	"errors"
@@ -70,56 +70,37 @@ func NewResolverReader(r io.Reader) (*Resolver, error) {
 // LookupNAPTR makes DNS NAPTR lookup and returns list of naptre records
 func (r *Resolver) LookupNAPTR(domain string) []*NAPTR {
 	logger.Log("naptr request for %q", domain)
-	m := new(dns.Msg).SetQuestion(dns.Fqdn(domain), dns.TypeNAPTR)
 
-	procAnsw := func(rr []dns.RR) []*NAPTR {
-		answ := make([]*NAPTR, 0, len(rr))
-		for _, r := range rr {
-			if data, ok := r.(*dns.NAPTR); ok {
-				naptr := &NAPTR{
-					Order:   int(data.Order),
-					Pref:    int(data.Preference),
-					Flags:   data.Flags,
-					Service: data.Service,
-					Replace: data.Replacement,
-				}
-				answ = append(answ, naptr)
+	quest := new(dns.Msg).SetQuestion(dns.Fqdn(domain), dns.TypeNAPTR)
+
+	result := func(list []dns.RR) []*NAPTR {
+		naptr := make([]*NAPTR, len(list))
+		for i, answ := range list {
+			rr := answ.(*dns.NAPTR)
+			naptr[i] = &NAPTR{
+				Order:   int(rr.Order),
+				Pref:    int(rr.Preference),
+				Flags:   rr.Flags,
+				Service: rr.Service,
+				Replace: rr.Replacement,
 			}
 		}
-		return answ
+		return naptr
 	}
 
-	for _, s := range r.conf.Servers {
-		srv := net.JoinHostPort(s, r.conf.Port)
-		resp, err := dns.Exchange(m, srv)
-		if err != nil {
-			logger.Err("failed lookup naptr at %q: %s", srv, err)
-			continue
-		}
-		return procAnsw(resp.Answer)
-	}
-	return nil
+	return lookup[*NAPTR](quest, r.conf.Servers, r.conf.Port, result)
 }
 
 // LookupSRV makes DNS SRV request and returns list of SRV targets
 func (r *Resolver) LookupSRV(target string) []*SRV {
 	logger.Log("srv request for %q", target)
 
-	m := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeSRV)
-	for _, s := range r.conf.Servers {
-		namesrv := net.JoinHostPort(s, r.conf.Port)
-		resp, err := dns.Exchange(m, namesrv)
-		if err != nil {
-			logger.Err("failed lookup naptr at %q: %s", namesrv, err)
-			continue
-		}
-		srv := make([]*SRV, len(resp.Answer))
-		for i, answ := range resp.Answer {
-			rr, ok := answ.(*dns.SRV)
-			if !ok {
-				logger.Err("invalid returned record. expected SRV type")
-				return nil
-			}
+	quest := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeSRV)
+
+	result := func(list []dns.RR) []*SRV {
+		srv := make([]*SRV, len(list))
+		for i, answ := range list {
+			rr := answ.(*dns.SRV)
 			srv[i] = &SRV{
 				Target:   rr.Target,
 				Port:     int(rr.Port),
@@ -130,21 +111,35 @@ func (r *Resolver) LookupSRV(target string) []*SRV {
 		return srv
 	}
 
-	return nil
+	return lookup[*SRV](quest, r.conf.Servers, r.conf.Port, result)
 }
 
-func (r *Resolver) LookupAddr(target string) []*SRV {
+// LookupAddr resolves domain IP address(es)
+// TODO: IPv6 AAAA support
+func (r *Resolver) LookupAddr(target string) []net.IP {
 	logger.Log("address request for %q", target)
+	quest := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeA)
 
-	m := new(dns.Msg).SetQuestion(dns.Fqdn(target), dns.TypeA)
-	for _, s := range r.conf.Servers {
-		namesrv := net.JoinHostPort(s, r.conf.Port)
-		resp, err := dns.Exchange(m, namesrv)
+	result := func(list []dns.RR) []net.IP {
+		ips := make([]net.IP, len(list))
+		for i, answ := range list {
+			rr := answ.(*dns.A)
+			ips[i] = rr.A
+		}
+		return ips
+	}
+
+	return lookup[net.IP](quest, r.conf.Servers, r.conf.Port, result)
+}
+
+func lookup[T any](quest *dns.Msg, namesrv []string, port string, result func([]dns.RR) []T) []T {
+	for _, ns := range namesrv {
+		resp, err := dns.Exchange(quest, net.JoinHostPort(ns, port))
 		if err != nil {
-			logger.Err("failed lookup naptr at %q: %s", namesrv, err)
+			logger.Err("failed lookup naptr at %q: %s", ns, err)
 			continue
 		}
-		fmt.Printf("%#v\n", resp)
+		return result(resp.Answer)
 	}
 	return nil
 }

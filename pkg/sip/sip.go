@@ -1,15 +1,18 @@
 package sip
 
-import "net/netip"
+import (
+	"gosip/pkg/dns"
+	"net"
+	"net/netip"
+)
 
-// Transport SIP
-type Transport interface {
-	Send(addr netip.AddrPort, msg Message) error
-	IsReliable() bool
+// DNS interface to a module that implements
+// resolving NAPTR/DRV and A records
+type DNS interface {
+	LookupNAPTR(target string) []*dns.NAPTR
+	LookupSRV(target string) []*dns.SRV
+	LookupAddr(target string) []net.IP
 }
-
-// Transaction SIP
-type Transaction interface{}
 
 // Message interface for SIP requests or responses
 type Message interface {
@@ -23,3 +26,12 @@ type Message interface {
 	ResponseCode() int
 	Byte() []byte
 }
+
+// Transport SIP
+type Transport interface {
+	Send(addr netip.AddrPort, msg Message) error
+	IsReliable() bool
+}
+
+// Transaction SIP
+type Transaction interface{}

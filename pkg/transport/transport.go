@@ -24,6 +24,7 @@ type Manager struct {
 	conn    *Store[Conn]
 	rcv     chan Packet
 	support tTransp
+	dns     sip.DNS
 }
 
 type Listener interface {
