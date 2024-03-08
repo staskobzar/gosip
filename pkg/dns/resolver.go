@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/miekg/dns"
 )
@@ -88,7 +89,8 @@ func (r *Resolver) LookupNAPTR(domain string) []*NAPTR {
 		return naptr
 	}
 
-	return lookup[*NAPTR](quest, r.conf.Servers, r.conf.Port, result)
+	return sortNAPTR(
+		lookup[*NAPTR](quest, r.conf.Servers, r.conf.Port, result))
 }
 
 // LookupSRV makes DNS SRV request and returns list of SRV targets
@@ -111,7 +113,8 @@ func (r *Resolver) LookupSRV(target string) []*SRV {
 		return srv
 	}
 
-	return lookup[*SRV](quest, r.conf.Servers, r.conf.Port, result)
+	return sortSRV(
+		lookup[*SRV](quest, r.conf.Servers, r.conf.Port, result))
 }
 
 // LookupAddr resolves domain IP address(es)
@@ -142,4 +145,47 @@ func lookup[T any](quest *dns.Msg, namesrv []string, port string, result func([]
 		return result(resp.Answer)
 	}
 	return nil
+}
+
+func sortSRV(srv []*SRV) []*SRV {
+	slices.SortFunc(srv, func(a, b *SRV) int {
+		order := a.Priority - b.Priority
+		if order == 0 {
+			// TODO: shuffle weights as it is described in rfc2782
+			// The following algorithm SHOULD be used to order the
+			// SRV RRs of the same priority:
+
+			// ===>>>
+			// To select a target to be contacted next, arrange all SRV RRs
+			// (that have not been ordered yet) in any order, except that all
+			// those with weight 0 are placed at the beginning of the list.
+
+			// Compute the sum of the weights of those RRs, and with each RR
+			// associate the running sum in the selected order. Then choose a
+			// uniform random number between 0 and the sum computed
+			// (inclusive), and select the RR whose running sum value is the
+			// first in the selected order which is greater than or equal to
+			// the random number selected. The target host specified in the
+			// selected SRV RR is the next one to be contacted by the client.
+			// Remove this SRV RR from the set of the unordered SRV RRs and
+			// apply the described algorithm to the unordered SRV RRs to select
+			// the next target host.  Continue the ordering process until there
+			// are no unordered SRV RRs.  This process is repeated for each
+			// Priority.
+			return b.Weight - a.Weight
+		}
+		return order
+	})
+	return srv
+}
+
+func sortNAPTR(naptr []*NAPTR) []*NAPTR {
+	slices.SortFunc(naptr, func(a, b *NAPTR) int {
+		order := a.Order - b.Order
+		if order == 0 {
+			return a.Pref - b.Pref
+		}
+		return order
+	})
+	return naptr
 }

@@ -224,3 +224,127 @@ func TestResolverLookupAddr(t *testing.T) {
 		assert.Len(t, addr, 0)
 	})
 }
+
+func TestSortSRV(t *testing.T) {
+	tests := map[string]struct {
+		input []*SRV
+		want  []*SRV
+	}{
+		`empty input`: {nil, nil},
+		`single element`: {
+			[]*SRV{{"a.sip.com", 5060, 0, 0}},
+			[]*SRV{{"a.sip.com", 5060, 0, 0}},
+		},
+		`no sort needed`: {
+			[]*SRV{
+				{"a.com", 5060, 0, 0},
+				{"b.com", 5060, 100, 0},
+				{"c.com", 5060, 1000, 0},
+			},
+			[]*SRV{
+				{"a.com", 5060, 0, 0},
+				{"b.com", 5060, 100, 0},
+				{"c.com", 5060, 1000, 0},
+			},
+		},
+		`sort when priorities only`: {
+			[]*SRV{
+				{"c.com", 5060, 1000, 0},
+				{"a.com", 5060, 0, 0},
+				{"b.com", 5060, 100, 0},
+			},
+			[]*SRV{
+				{"a.com", 5060, 0, 0},
+				{"b.com", 5060, 100, 0},
+				{"c.com", 5060, 1000, 0},
+			},
+		},
+		`sort priorities with weights`: {
+			[]*SRV{
+				{"c.com", 5060, 1000, 0},
+				{"a.com", 5060, 0, 10},
+				{"b.com", 5060, 0, 50},
+			},
+			[]*SRV{
+				{"b.com", 5060, 0, 50},
+				{"a.com", 5060, 0, 10},
+				{"c.com", 5060, 1000, 0},
+			},
+		},
+		`sort weights`: {
+			[]*SRV{
+				{"c.com", 5060, 0, 60},
+				{"a.com", 5060, 0, 10},
+				{"b.com", 5060, 0, 50},
+				{"d.com", 5060, 0, 110},
+			},
+			[]*SRV{
+				{"d.com", 5060, 0, 110},
+				{"c.com", 5060, 0, 60},
+				{"b.com", 5060, 0, 50},
+				{"a.com", 5060, 0, 10},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			srv := sortSRV(tc.input)
+			assert.Equal(t, len(tc.want), len(srv))
+			for i, rec := range tc.want {
+				assert.Equal(t, rec, srv[i])
+			}
+		})
+	}
+}
+
+func TestSortNAPTR(t *testing.T) {
+	tests := map[string]struct {
+		input []*NAPTR
+		want  []*NAPTR
+	}{
+		`empty input`: {nil, nil},
+		`single element`: {
+			[]*NAPTR{{Replace: "_sip._udp.a.com", Order: 0, Pref: 0}},
+			[]*NAPTR{{Replace: "_sip._udp.a.com", Order: 0, Pref: 0}},
+		},
+		`order sort`: {
+			[]*NAPTR{
+				{Replace: "_sip._udp.c.com", Order: 120, Pref: 0},
+				{Replace: "_sip._udp.a.com", Order: 10, Pref: 0},
+				{Replace: "_sip._udp.b.com", Order: 50, Pref: 0},
+			},
+			[]*NAPTR{
+				{Replace: "_sip._udp.a.com", Order: 10, Pref: 0},
+				{Replace: "_sip._udp.b.com", Order: 50, Pref: 0},
+				{Replace: "_sip._udp.c.com", Order: 120, Pref: 0},
+			},
+		},
+		`pref sort within the same order`: {
+			[]*NAPTR{
+				{Replace: "_sip._udp.e.com", Order: 20, Pref: 56},
+				{Replace: "_sip._udp.c.com", Order: 10, Pref: 120},
+				{Replace: "_sip._udp.b.com", Order: 10, Pref: 67},
+				{Replace: "_sip._udp.d.com", Order: 20, Pref: 54},
+				{Replace: "_sip._udp.a.com", Order: 10, Pref: 43},
+			},
+			[]*NAPTR{
+				{Replace: "_sip._udp.a.com", Order: 10, Pref: 43},
+				{Replace: "_sip._udp.b.com", Order: 10, Pref: 67},
+				{Replace: "_sip._udp.c.com", Order: 10, Pref: 120},
+				{Replace: "_sip._udp.d.com", Order: 20, Pref: 54},
+				{Replace: "_sip._udp.e.com", Order: 20, Pref: 56},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			naptr := sortNAPTR(tc.input)
+			assert.Equal(t, len(tc.want), len(naptr))
+			for i, rec := range tc.want {
+				assert.Equal(t, rec, naptr[i])
+			}
+		})
+	}
+}

@@ -3,6 +3,7 @@ package transaction
 import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
+	"gosip/pkg/sipmsg"
 	"net/netip"
 	"time"
 )
@@ -11,19 +12,19 @@ type ClientNonInvite struct {
 	Basic
 }
 
-func createClientNonInvite(transp sip.Transport, endpoint EndPoint, msg sip.Message) *ClientNonInvite {
+func createClientNonInvite(transp sip.Transport, endpoint EndPoint, msg *sipmsg.Message) *ClientNonInvite {
 	return &ClientNonInvite{
 		Basic: initBasicTxn(transp, endpoint, msg),
 	}
 }
 
-func (txn *ClientNonInvite) Init(msg sip.Message, addr netip.AddrPort) {
+func (txn *ClientNonInvite) Init(msg *sipmsg.Message, addr netip.AddrPort) {
 	txn.addr = addr
 	txn.trying(msg)
 	txn.fireTimerF(msg)
 }
 
-func (txn *ClientNonInvite) Consume(msg sip.Message) {
+func (txn *ClientNonInvite) Consume(msg *sipmsg.Message) {
 	if !msg.IsResponse() {
 		return
 	}
@@ -45,7 +46,7 @@ func (txn *ClientNonInvite) Consume(msg sip.Message) {
 	}
 }
 
-func (txn *ClientNonInvite) trying(msg sip.Message) {
+func (txn *ClientNonInvite) trying(msg *sipmsg.Message) {
 	txn.state.Store(Trying)
 	txn.Send(msg)
 
@@ -66,7 +67,7 @@ func (txn *ClientNonInvite) complete() {
 	txn.fireTimerK()
 }
 
-func (txn *ClientNonInvite) fireTimerE(msg sip.Message) {
+func (txn *ClientNonInvite) fireTimerE(msg *sipmsg.Message) {
 	go func() {
 		tick := tickTimerE(txn.timer.T1, txn.timer.T2)
 		timer := time.NewTimer(0)
@@ -97,7 +98,7 @@ func tickTimerE(t1, t2 time.Duration) func(uint32) time.Duration {
 	}
 }
 
-func (txn *ClientNonInvite) fireTimerF(msg sip.Message) {
+func (txn *ClientNonInvite) fireTimerF(msg *sipmsg.Message) {
 	go func() {
 		select {
 		case <-time.After(txn.timer.T1 * 64):

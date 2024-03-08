@@ -3,6 +3,7 @@ package transaction
 import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
+	"gosip/pkg/sipmsg"
 	"net/netip"
 	"time"
 )
@@ -11,19 +12,19 @@ type ClientInvite struct {
 	Basic
 }
 
-func createClientInvite(transp sip.Transport, endpoint EndPoint, msg sip.Message) *ClientInvite {
+func createClientInvite(transp sip.Transport, endpoint EndPoint, msg *sipmsg.Message) *ClientInvite {
 	return &ClientInvite{
 		Basic: initBasicTxn(transp, endpoint, msg),
 	}
 }
 
-func (txn *ClientInvite) Init(msg sip.Message, addr netip.AddrPort) {
+func (txn *ClientInvite) Init(msg *sipmsg.Message, addr netip.AddrPort) {
 	txn.addr = addr
 	txn.calling(msg)
 	txn.fireTimerB(msg)
 }
 
-func (txn *ClientInvite) Consume(msg sip.Message) {
+func (txn *ClientInvite) Consume(msg *sipmsg.Message) {
 	if !msg.IsResponse() {
 		return
 	}
@@ -37,7 +38,7 @@ func (txn *ClientInvite) Consume(msg sip.Message) {
 		// absorb re-transactions
 		if code >= 300 && code <= 699 {
 			// 17.1.1.3 Construction of the ACK Request
-			ack := txn.req.Ack(msg)
+			ack := txn.req.ACK(msg)
 			txn.Send(ack)
 		}
 	default:
@@ -45,7 +46,7 @@ func (txn *ClientInvite) Consume(msg sip.Message) {
 	}
 }
 
-func (txn *ClientInvite) calling(msg sip.Message) {
+func (txn *ClientInvite) calling(msg *sipmsg.Message) {
 	txn.state.Store(Calling)
 	txn.Send(msg)
 	if txn.transp.IsReliable() {
@@ -56,7 +57,7 @@ func (txn *ClientInvite) calling(msg sip.Message) {
 	txn.fireTimerA(msg)
 }
 
-func (txn *ClientInvite) fireTimerA(msg sip.Message) {
+func (txn *ClientInvite) fireTimerA(msg *sipmsg.Message) {
 	go func() {
 		t1 := txn.timer.T1
 		timer := time.NewTimer(0)
@@ -74,7 +75,7 @@ func (txn *ClientInvite) fireTimerA(msg sip.Message) {
 	}()
 }
 
-func (txn *ClientInvite) fireTimerB(msg sip.Message) {
+func (txn *ClientInvite) fireTimerB(msg *sipmsg.Message) {
 	go func() {
 		select {
 		case <-time.After(txn.timer.T1 * 64):
@@ -104,7 +105,7 @@ func (txn *ClientInvite) fireTimerD() {
 	}()
 }
 
-func (txn *ClientInvite) proceed(code int, msg sip.Message) {
+func (txn *ClientInvite) proceed(code int, msg *sipmsg.Message) {
 	switch {
 	case code >= 100 && code < 200:
 		txn.state.Store(Proceeding)
@@ -112,7 +113,7 @@ func (txn *ClientInvite) proceed(code int, msg sip.Message) {
 		txn.terminate()
 	case code >= 300 && code <= 699:
 		txn.state.Store(Completed)
-		txn.Send(txn.req.Ack(msg))
+		txn.Send(txn.req.ACK(msg))
 		txn.fireTimerD()
 	default:
 		logger.Err("invalid proceed code %d", code)

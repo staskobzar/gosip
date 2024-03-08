@@ -2,11 +2,19 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
+	"gosip/pkg/sipmsg"
 	"net"
 	"time"
+)
+
+// module errors
+var (
+	Error     = errors.New("transport")
+	ErrResolv = fmt.Errorf("%w: dns resovl", Error)
 )
 
 const reconnTout = time.Second * 3
@@ -14,9 +22,12 @@ const reconnTout = time.Second * 3
 type tTransp uint8
 
 const (
-	tNone tTransp = 0
-	tUDP  tTransp = 1 << iota
+	tUnknown tTransp = 0
+	// https://github.com/ishidawataru/sctp
+	tSCTP tTransp = 1 << iota
 	tTCP
+	tTLS
+	tUDP
 )
 
 type Manager struct {
@@ -77,7 +88,7 @@ func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
 	return nil
 }
 
-func (mgr *Manager) Send(src, dst net.Addr, msg sip.Message) error {
+func (mgr *Manager) Send(src, dst net.Addr, msg *sipmsg.Message) error {
 	switch src.Network() {
 	case "udp":
 		return mgr.SendUDP(src, dst, msg)
@@ -88,7 +99,7 @@ func (mgr *Manager) Send(src, dst net.Addr, msg sip.Message) error {
 	}
 }
 
-func (mgr *Manager) SendUDP(src, dst net.Addr, msg sip.Message) error {
+func (mgr *Manager) SendUDP(src, dst net.Addr, msg *sipmsg.Message) error {
 	name := sockName(src)
 	ln, found := mgr.sock.Get(name)
 	if !found {
@@ -109,7 +120,7 @@ func (mgr *Manager) SendUDP(src, dst net.Addr, msg sip.Message) error {
 	return nil
 }
 
-func (mgr *Manager) SendTCP(src, dst net.Addr, msg sip.Message) error {
+func (mgr *Manager) SendTCP(src, dst net.Addr, msg *sipmsg.Message) error {
 	name := connName(src, dst)
 	cn, found := mgr.conn.Get(name)
 	if !found {

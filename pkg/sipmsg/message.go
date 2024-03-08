@@ -1,7 +1,6 @@
 package sipmsg
 
 import (
-	"gosip/pkg/sip"
 	"slices"
 	"strconv"
 )
@@ -32,19 +31,15 @@ func NewMessage() *Message {
 }
 
 // Byte returns *Message as byte
-// @impl sip.Message
 func (msg *Message) Byte() []byte { return []byte(msg.String()) }
 
 // IsResponse returns true if Message is SIP response
-// @impl sip.Message
 func (msg *Message) IsResponse() bool { return msg.t == HResponse }
 
 // SIPMethod returns Message method
-// @impl sip.Message
 func (msg *Message) SIPMethod() string { return msg.Method }
 
 // ResponseCode returns SIP response code for ResponseCode or zero
-// @impl sip.Message
 func (msg *Message) ResponseCode() int {
 	if !msg.IsResponse() {
 		return 0
@@ -54,7 +49,6 @@ func (msg *Message) ResponseCode() int {
 }
 
 // TopViaBranch returns top Via header branch parameter
-// @impl sip.Message
 func (msg *Message) TopViaBranch() string {
 	hdr := msg.Find(HVia)
 	if hdr == nil {
@@ -69,12 +63,6 @@ func (msg *Message) TopViaBranch() string {
 	return via.Branch
 }
 
-// Ack returns ACK message generated from initial request
-// @impl sip.Message
-func (msg *Message) Ack(resp sip.Message) sip.Message {
-	return msg.ACK(resp.(*Message))
-}
-
 // ACK returns ACK message generated from initial request
 // This ACK request is a part of transaction machine
 // and generated on any responses other then 200
@@ -82,7 +70,6 @@ func (msg *Message) Ack(resp sip.Message) sip.Message {
 //
 // 17.1.1.3 Construction of the ACK Request
 // ACK is supposed to be generated from initial request
-// @impl sip.Message
 func (msg *Message) ACK(resp *Message) *Message {
 	ack := NewMessage()
 	ack.t = HRequest

@@ -10,7 +10,7 @@ import (
 
 func TestClientNonInviteInit(t *testing.T) {
 	t.Run("with unreliable transport", func(t *testing.T) {
-		endpoint, transp, msg, addr := createMock()
+		endpoint, transp, msg, addr := createMock(stubNonInvite)
 		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 
@@ -26,7 +26,7 @@ func TestClientNonInviteInit(t *testing.T) {
 	})
 
 	t.Run("with reliable transport", func(t *testing.T) {
-		endpoint, transp, msg, addr := createMock()
+		endpoint, transp, msg, addr := createMock(stubNonInvite)
 		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 		transp.isReliable = true
@@ -39,16 +39,16 @@ func TestClientNonInviteInit(t *testing.T) {
 	})
 
 	t.Run("ignore if Message is not response", func(t *testing.T) {
-		endpoint, transp, msg, _ := createMock()
+		endpoint, transp, msg, _ := createMock(stubNonInvite)
 
 		txn := createClientNonInvite(transp, endpoint, msg)
-		txn.Consume(&mockMsg{})
+		txn.Consume(mockResponse("200", "OK"))
 
 		assert.Equal(t, Unknown, txn.state.Load())
 	})
 
 	t.Run("terminates on trying state on timeout timer F", func(t *testing.T) {
-		endpoint, transp, msg, addr := createMock()
+		endpoint, transp, msg, addr := createMock(stubNonInvite)
 		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T1 = 1 * time.Millisecond
 		transp.isReliable = true
@@ -64,10 +64,10 @@ func TestClientNonInviteInit(t *testing.T) {
 
 func TestClientNonInviteConsume(t *testing.T) {
 	t.Run("ignore if Message is not response", func(t *testing.T) {
-		endpoint, transp, msg, _ := createMock()
+		endpoint, transp, msg, _ := createMock(stubNonInvite)
 
-		txn := createClientInvite(transp, endpoint, msg)
-		txn.Consume(&mockMsg{})
+		txn := createClientNonInvite(transp, endpoint, msg)
+		txn.Consume(stubInviteMsg())
 
 		assert.Equal(t, Unknown, txn.state.Load())
 	})
@@ -75,34 +75,34 @@ func TestClientNonInviteConsume(t *testing.T) {
 	t.Run("on trying or proceeding state", func(t *testing.T) {
 		tests := map[string]struct {
 			onState   uint32
-			respCode  int
+			respCode  string
 			wantState uint32
 		}{
-			`trying response 100 to proceeding`:     {Trying, 100, Proceeding},
-			`trying response 200 to completed`:      {Trying, 200, Completed},
-			`trying response 303 to completed`:      {Trying, 303, Completed},
-			`trying response 404 to completed`:      {Trying, 404, Completed},
-			`trying response 550 to completed`:      {Trying, 550, Completed},
-			`proceeding response 186 to proceeding`: {Proceeding, 186, Proceeding},
-			`proceeding response 202 to completed`:  {Proceeding, 202, Completed},
-			`proceeding response 303 to completed`:  {Proceeding, 303, Completed},
-			`proceeding response 404 to completed`:  {Proceeding, 404, Completed},
-			`proceeding response 550 to completed`:  {Proceeding, 550, Completed},
+			`trying response 100 to proceeding`:     {Trying, "100", Proceeding},
+			`trying response 200 to completed`:      {Trying, "200", Completed},
+			`trying response 303 to completed`:      {Trying, "303", Completed},
+			`trying response 404 to completed`:      {Trying, "404", Completed},
+			`trying response 550 to completed`:      {Trying, "550", Completed},
+			`proceeding response 186 to proceeding`: {Proceeding, "186", Proceeding},
+			`proceeding response 202 to completed`:  {Proceeding, "202", Completed},
+			`proceeding response 303 to completed`:  {Proceeding, "303", Completed},
+			`proceeding response 404 to completed`:  {Proceeding, "404", Completed},
+			`proceeding response 550 to completed`:  {Proceeding, "550", Completed},
 		}
 
 		for name, tc := range tests {
 			t.Run(name, func(t *testing.T) {
-				endpoint, transp, msg, _ := createMock()
+				endpoint, transp, msg, _ := createMock(stubNonInvite)
 				txn := createClientNonInvite(transp, endpoint, msg)
 				txn.state.Store(tc.onState)
-				txn.Consume(&mockMsg{code: tc.respCode})
+				txn.Consume(mockResponse(tc.respCode, ""))
 				assert.Equal(t, tc.wantState, txn.state.Load())
 			})
 		}
 	})
 
 	t.Run("on trying transport error sends to TU and terminates transaction", func(t *testing.T) {
-		endpoint, transp, msg, addr := createMock()
+		endpoint, transp, msg, addr := createMock(stubNonInvite)
 		transp.senderr = fmt.Errorf("transport failed to send")
 		txn := createClientNonInvite(transp, endpoint, msg)
 
@@ -116,22 +116,22 @@ func TestClientNonInviteConsume(t *testing.T) {
 
 func TestClientNonInviteComplete(t *testing.T) {
 	t.Run("with unreliable transport starts timer K", func(t *testing.T) {
-		endpoint, transp, msg, _ := createMock()
+		endpoint, transp, msg, _ := createMock(stubNonInvite)
 		txn := createClientNonInvite(transp, endpoint, msg)
 		txn.timer.T4 = 2 * time.Millisecond
 		txn.state.Store(Proceeding)
-		txn.Consume(&mockMsg{code: 200})
+		txn.Consume(mockResponse("200", "OK"))
 		assert.Equal(t, Completed, txn.state.Load())
 		<-time.After(5 * time.Millisecond)
 		assert.Equal(t, Terminated, txn.state.Load())
 	})
 
 	t.Run("with reliable transport switch to terminated", func(t *testing.T) {
-		endpoint, transp, msg, _ := createMock()
+		endpoint, transp, msg, _ := createMock(stubNonInvite)
 		txn := createClientNonInvite(transp, endpoint, msg)
 		transp.isReliable = true
 		txn.state.Store(Proceeding)
-		txn.Consume(&mockMsg{code: 200})
+		txn.Consume(mockResponse("200", "OK"))
 		assert.Equal(t, Terminated, txn.state.Load())
 	})
 }

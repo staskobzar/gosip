@@ -2,6 +2,7 @@ package sip
 
 import (
 	"gosip/pkg/dns"
+	"gosip/pkg/sipmsg"
 	"net"
 	"net/netip"
 )
@@ -14,22 +15,15 @@ type DNS interface {
 	LookupAddr(target string) []net.IP
 }
 
-// Message interface for SIP requests or responses
-type Message interface {
-	// generate ACK for initial SIP request
-	// this is part of the transaction ACK
-	// for 3xx-6xx responses: rfc3261#17.1.1.3
-	Ack(Message) Message
-	IsResponse() bool
-	TopViaBranch() string
-	SIPMethod() string
-	ResponseCode() int
-	Byte() []byte
+type Packet struct {
+	AddrFrom net.Addr
+	AddrTo   net.Addr
+	Message  *sipmsg.Message
 }
 
 // Transport SIP
 type Transport interface {
-	Send(addr netip.AddrPort, msg Message) error
+	Send(addr netip.AddrPort, msg *sipmsg.Message) error
 	IsReliable() bool
 }
 

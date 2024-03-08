@@ -1,6 +1,7 @@
 package transaction
 
 import (
+	"gosip/pkg/sipmsg"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,8 +18,8 @@ func TestTxnLayerClient(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			endpoint, transp, msg, addr := createMock()
-			msg.method = tc.method
+			endpoint, transp, msg, addr := createMock(stubInvite)
+			msg.Method = tc.method
 
 			txl := New(endpoint)
 			assert.Zero(t, len(txl.pool))
@@ -33,7 +34,7 @@ func TestTxnLayerClient(t *testing.T) {
 }
 
 func TestTxnLayerConsume(t *testing.T) {
-	endpoint, transp, msg, addr := createMock()
+	endpoint, transp, msg, addr := createMock(stubInvite)
 	transp.isReliable = true
 
 	txl := New(endpoint)
@@ -41,7 +42,11 @@ func TestTxnLayerConsume(t *testing.T) {
 	assert.Equal(t, 1, len(txl.pool))
 	assert.Equal(t, 1, transp.msgLen())
 
-	resp := &mockMsg{code: 200, branch: msg.TopViaBranch()}
+	resp := mockResponse("200", "OK")
+	via := resp.Find(sipmsg.HVia).(*sipmsg.HeaderVia)
+	via.Branch = msg.TopViaBranch()
+	via.Params = via.Params.Set("branch", via.Branch)
+
 	txl.Consume(resp, transp, addr)
 	txl.TxnDestroy(endpoint.destroyID)
 

@@ -3,7 +3,6 @@ package sipmsg
 
 import (
 	"errors"
-	"gosip/pkg/sip"
 )
 
 // errors
@@ -13,6 +12,6 @@ var (
 )
 
 // Decode parse received SIP message into Message
-func Decode(_ []byte) (sip.Message, error) {
-	return nil, nil
+func Decode(input []byte) (*Message, error) {
+	return Parse(string(input))
 }
