@@ -33,12 +33,7 @@ func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	// for a SIPS URI
 	if ipaddr := net.ParseIP(uri.Hostport); ipaddr != nil {
 		logger.Log("dns: uri host is an IP address %q", ipaddr)
-		if strings.EqualFold(uri.Scheme, "sip") {
-			logger.Log("dns: using UDP transport for %q uri scheme", uri.Scheme)
-			return mgr.getPortIP(tUDP, uri, nil)
-		}
-		logger.Log("dns: using TCP transport for %q uri scheme", uri.Scheme)
-		return mgr.getPortIP(tTCP, uri, nil)
+		return mgr.getPortIP(schemeToTransp(uri.Scheme), uri, nil)
 	}
 
 	// Similarly, if no transport protocol is specified,
@@ -46,18 +41,12 @@ func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	// client SHOULD use UDP for a SIP URI, and TCP for a SIPS URI.
 	if host, port, err := net.SplitHostPort(uri.Hostport); err == nil {
 		logger.Log("dns: uri host part has port %q", uri.Hostport)
-		transp := tUDP
-		if strings.EqualFold(uri.Scheme, "sips") {
-			transp = tTCP
-		}
-		logger.Log("dns: using transport %q for uri scheme %q", transp.String(), uri.Scheme)
-
 		if ipaddr := net.ParseIP(host); ipaddr != nil {
 			logger.Log("dns: hostpart is IP %q", ipaddr)
-			return netAddr(transp, []string{host}, port)
+			return netAddr(schemeToTransp(uri.Scheme), []string{host}, port)
 		}
 		logger.Log("dns: hostpart is domain %q", host)
-		return mgr.lookupAddr(transp, host, port)
+		return mgr.lookupAddr(schemeToTransp(uri.Scheme), host, port)
 	}
 
 	// Otherwise, if no transport protocol or port is specified, and the
@@ -98,13 +87,7 @@ func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	// If no SRV records are found, the client SHOULD use TCP for a SIPS
 	// URI, and UDP for a SIP URI.
 	logger.Log("dns: no SRV records found")
-	if uri.Scheme == "sips" {
-		logger.Log("dns: trying TCP for %q scheme", uri.Scheme)
-		return mgr.lookupAddr(tTCP, uri.Hostport, "")
-	}
-
-	logger.Log("dns: trying UDP for %q scheme", uri.Scheme)
-	return mgr.lookupAddr(tUDP, uri.Hostport, "")
+	return mgr.lookupAddr(schemeToTransp(uri.Scheme), uri.Hostport, "")
 }
 
 // TODO: RFC3263#5 Server Usage
@@ -313,4 +296,13 @@ func transpPort(transp tTransp) int {
 		return 5061
 	}
 	return 5060
+}
+
+func schemeToTransp(scheme string) tTransp {
+	if strings.EqualFold(scheme, "sips") {
+		logger.Log("dns: using TCP transport for %q uri scheme", scheme)
+		return tTCP
+	}
+	logger.Log("dns: using UDP transport for %q uri scheme", scheme)
+	return tUDP
 }
