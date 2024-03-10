@@ -30,6 +30,21 @@ const (
 	tUDP
 )
 
+func (transp tTransp) String() string {
+	switch transp {
+	case tSCTP:
+		return "sctp"
+	case tTCP:
+		return "tcp"
+	case tTLS:
+		return "tls"
+	case tUDP:
+		return "udp"
+	default:
+		return "unknown"
+	}
+}
+
 type Manager struct {
 	sock    *Store[Listener]
 	conn    *Store[Conn]
@@ -61,6 +76,10 @@ func Init() *Manager {
 		conn: NewStore[Conn](),
 		rcv:  make(chan Packet, 32),
 	}
+}
+
+func (mgr *Manager) WithResolver(dns sip.DNS) {
+	mgr.dns = dns
 }
 
 func (mgr *Manager) ListenTCP(ctx context.Context, addrport string) error {
