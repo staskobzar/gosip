@@ -14,6 +14,8 @@ import (
 // module errors
 var (
 	Error     = errors.New("transport")
+	ErrListen = fmt.Errorf("%w: listner", Error)
+	ErrSend   = fmt.Errorf("%w: send", Error)
 	ErrResolv = fmt.Errorf("%w: dns resovl", Error)
 )
 
@@ -49,6 +51,8 @@ type Manager struct {
 	sock    *Store[Listener]
 	conn    *Store[Conn]
 	rcv     chan Packet
+	resolv  chan sip.Packet
+	err     chan error
 	support tTransp
 	dns     sip.DNS
 }
@@ -70,11 +74,30 @@ type Packet struct {
 	Raddr   net.Addr
 }
 
+func dbg(pattern string, args ...any) {
+	logger.Log("transp: "+pattern, args...)
+}
+func wrn(pattern string, args ...any) {
+	logger.Wrn("transp: "+pattern, args...)
+}
+func perr(pattern string, args ...any) {
+	logger.Err("transp: "+pattern, args...)
+}
+func dbgr(pattern string, args ...any) {
+	logger.Log("transp:dns: "+pattern, args...)
+}
+func wrnr(pattern string, args ...any) {
+	logger.Wrn("transp:dns: "+pattern, args...)
+}
+
 func Init() *Manager {
+	dbg("init manager")
 	return &Manager{
-		sock: NewStore[Listener](),
-		conn: NewStore[Conn](),
-		rcv:  make(chan Packet, 32),
+		sock:   NewStore[Listener](),
+		conn:   NewStore[Conn](),
+		rcv:    make(chan Packet, 32),
+		resolv: make(chan sip.Packet, 32),
+		err:    make(chan error, 32),
 	}
 }
 
@@ -83,9 +106,11 @@ func (mgr *Manager) WithResolver(dns sip.DNS) {
 }
 
 func (mgr *Manager) ListenTCP(ctx context.Context, addrport string) error {
+	dbg("start TCP listener on %q", addrport)
 	addr, err := net.ResolveTCPAddr("tcp", addrport)
 	if err != nil {
-		return fmt.Errorf("failed to resolve TCP address %q: %s", addrport, err)
+		return fmt.Errorf("%w: failed to resolve TCP address %q: %s",
+			ErrListen, addrport, err)
 	}
 
 	ln := &TCPListener{laddr: addr}
@@ -96,9 +121,11 @@ func (mgr *Manager) ListenTCP(ctx context.Context, addrport string) error {
 }
 
 func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
+	dbg("start UDP listener on %q", addrport)
 	addr, err := net.ResolveUDPAddr("udp", addrport)
 	if err != nil {
-		return fmt.Errorf("failed to resolve UDP address %q: %s", addrport, err)
+		return fmt.Errorf("%w: failed to resolve UDP address %q: %s",
+			ErrListen, addrport, err)
 	}
 	ln := &UDP{laddr: addr}
 	go mgr.listen(ctx, ln)
@@ -114,7 +141,7 @@ func (mgr *Manager) Send(src, dst net.Addr, msg *sipmsg.Message) error {
 	case "tcp":
 		return mgr.SendTCP(src, dst, msg)
 	default:
-		return fmt.Errorf("invalid or unsupported network %q", src.Network())
+		return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, src.Network())
 	}
 }
 
@@ -122,20 +149,21 @@ func (mgr *Manager) SendUDP(src, dst net.Addr, msg *sipmsg.Message) error {
 	name := sockName(src)
 	ln, found := mgr.sock.Get(name)
 	if !found {
-		return fmt.Errorf("connection %q was not found", name)
+		return fmt.Errorf("%w: connection %q was not found", ErrSend, name)
 	}
 
 	udp, ok := ln.(*UDP)
 	if !ok {
-		return fmt.Errorf("found %q socket but type is not UDPConn", name)
+		return fmt.Errorf("%w: found %q socket but type is not UDPConn",
+			ErrSend, name)
 	}
 
 	n, err := udp.conn.WriteTo(msg.Byte(), dst)
 	if err != nil {
-		return fmt.Errorf("failed to write to udp:%s from %q: %s",
-			dst, name, err)
+		return fmt.Errorf("%w: failed to write to udp:%s from %q: %s",
+			ErrSend, dst, name, err)
 	}
-	logger.Log("successfully sent to udp %s from %q %d bytes", dst, src, n)
+	dbg("successfully sent to udp %s from %q %d bytes", dst, src, n)
 	return nil
 }
 
@@ -143,37 +171,45 @@ func (mgr *Manager) SendTCP(src, dst net.Addr, msg *sipmsg.Message) error {
 	name := connName(src, dst)
 	cn, found := mgr.conn.Get(name)
 	if !found {
-		return fmt.Errorf("connection %q not found", name)
+		return fmt.Errorf("%w: connection %q not found", ErrSend, name)
 	}
 
 	tcp, ok := cn.(*TCP)
 	if !ok {
-		return fmt.Errorf("found %q socket but type is not UDPConn", name)
+		return fmt.Errorf("%w: found %q socket but type is not UDPConn", ErrSend, name)
 	}
 
 	n, err := tcp.conn.Write(msg.Byte())
 	if err != nil {
-		return fmt.Errorf("failed to write to conn %q: %s", name, err)
+		return fmt.Errorf("%w: failed to write to conn %q: %s", ErrSend, name, err)
 	}
-	logger.Log("sent %d bytes to %q", n, name)
+	dbg("sent %d bytes to %q", n, name)
 
 	return nil
+}
+
+func (mgr *Manager) Err() <-chan error {
+	return mgr.err
 }
 
 func (mgr *Manager) Recv() <-chan Packet {
 	return mgr.rcv
 }
 
+func (mgr *Manager) Resolved() <-chan sip.Packet {
+	return mgr.resolv
+}
+
 func (mgr *Manager) listen(ctx context.Context, ln Listener) {
 	for {
 		if ctx.Err() != nil {
-			logger.Wrn("stop listener on context: %s", ctx.Err())
+			wrn("stop listener on context: %s", ctx.Err())
 			return
 		}
 
 		if err := ln.listen(ctx); err != nil {
-			logger.Err("failed to start listener: %s", err)
-			logger.Wrn("restart in %v", reconnTout)
+			perr("failed to start listener: %s", err)
+			wrn("restart in %v", reconnTout)
 			<-time.After(reconnTout)
 			continue
 		}
@@ -186,12 +222,12 @@ func (mgr *Manager) listen(ctx context.Context, ln Listener) {
 			case conn := <-connCh:
 				go conn.consume(ctx, mgr.rcv, mgr.conn)
 			case err := <-chErr:
-				logger.Err("accept connection err: %s", err)
+				perr("accept connection err: %s", err)
 				break connLoop
 			}
 		}
 
-		logger.Wrn("close and restart listener")
+		wrn("close and restart listener")
 		mgr.sock.Del(ln.key())
 		ln.close()
 	}
@@ -210,9 +246,9 @@ func rcvPacket(rcv chan<- Packet, buf []byte, laddr, raddr net.Addr) {
 
 	select {
 	case rcv <- pack:
-		logger.Log("sent pack with payload of %d bytes sock %q remote address %q", size, laddr, raddr)
+		dbg("sent pack with payload of %d bytes sock %q remote address %q", size, laddr, raddr)
 	case <-time.After(100 * time.Millisecond):
-		logger.Err("failed to send pack on blocked chan for sock %q remote address %q", laddr, raddr)
+		perr("failed to send pack on blocked chan for sock %q remote address %q", laddr, raddr)
 	}
 }
 

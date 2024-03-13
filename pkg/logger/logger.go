@@ -17,7 +17,7 @@ func Enable(val bool) {
 
 func Log(format string, args ...any) {
 	if enabled.Load() {
-		log.Printf(format, args...)
+		log.Printf("INF "+format, args...)
 	}
 }
 

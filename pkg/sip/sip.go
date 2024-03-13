@@ -16,9 +16,10 @@ type DNS interface {
 }
 
 type Packet struct {
-	AddrFrom net.Addr
-	AddrTo   net.Addr
-	Message  *sipmsg.Message
+	ReqAddrs   []net.Addr
+	LocalSock  net.Addr
+	RemoteSock net.Addr
+	Message    *sipmsg.Message
 }
 
 // Transport SIP

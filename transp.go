@@ -7,6 +7,7 @@ import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sipmsg"
 	"gosip/pkg/transport"
+	"net"
 	"time"
 )
 
@@ -21,7 +22,7 @@ import (
 // func (m *message) ResponseCode() int    { return 0 }
 // func (m *message) Byte() []byte         { return m.b }
 
-func main() {
+func mainDISABLE() {
 	fmt.Println("===================================================")
 
 	logger.Enable(true)
@@ -50,6 +51,18 @@ func main() {
 			continue
 		}
 		fmt.Println(mgr.Resolve(uri))
+	}
+
+	list, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+	for _, eth := range list {
+		addr, err := eth.Addrs()
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("%s: %s\n", eth.Name, addr)
 	}
 	// ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()

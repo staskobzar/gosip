@@ -36,6 +36,9 @@ func (msg *Message) Byte() []byte { return []byte(msg.String()) }
 // IsResponse returns true if Message is SIP response
 func (msg *Message) IsResponse() bool { return msg.t == HResponse }
 
+// IsRequest just a small helper for better code readability
+func (msg *Message) IsRequest() bool { return !msg.IsResponse() }
+
 // SIPMethod returns Message method
 func (msg *Message) SIPMethod() string { return msg.Method }
 
