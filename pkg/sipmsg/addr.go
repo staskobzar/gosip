@@ -60,6 +60,15 @@ func (naddr *NameAddrSpec) PrintAddr(buf *Stringer) {
 	buf.Print(">", naddr.Params.String())
 }
 
+func (naddr NameAddrSpec) copy() NameAddrSpec {
+	return NameAddrSpec{
+		HeaderName:  naddr.HeaderName,
+		DisplayName: naddr.DisplayName,
+		Addr:        naddr.Addr.Copy(),
+		Params:      naddr.Params,
+	}
+}
+
 func (naddr *NameAddrSpec) setDisplayName(val string) { naddr.DisplayName = strings.TrimSpace(val) }
 func (naddr *NameAddrSpec) setURIScheme(val string)   { naddr.Addr.Scheme = val }
 func (naddr *NameAddrSpec) setURIUserinfo(val string) { naddr.Addr.Userinfo = val }
@@ -81,6 +90,19 @@ func NewNameAddr(t HType, name string) *NameAddr {
 	return &NameAddr{
 		T:            t,
 		NameAddrSpec: NewNameAddrSpec(name),
+	}
+}
+
+// Copy NameAddr and returns its pointer
+func (naddr *NameAddr) Copy() AnyHeader {
+	return naddr.copy()
+}
+
+func (naddr *NameAddr) copy() *NameAddr {
+	return &NameAddr{
+		NameAddrSpec: naddr.NameAddrSpec.copy(),
+		T:            naddr.T,
+		Tag:          naddr.Tag,
 	}
 }
 
@@ -140,6 +162,25 @@ func NewHeaderContact(name string) *HeaderContact {
 	return &HeaderContact{
 		NameAddrSpec: NewNameAddrSpec(name),
 	}
+}
+
+// Copy HeaderContact and returns its pointer
+func (cnt *HeaderContact) Copy() AnyHeader {
+	return cnt.copy()
+}
+
+func (cnt *HeaderContact) copy() *HeaderContact {
+	c := &HeaderContact{
+		NameAddrSpec: cnt.NameAddrSpec.copy(),
+		Q:            cnt.Q,
+		Expires:      cnt.Expires,
+	}
+
+	if cnt.Next == nil {
+		return c
+	}
+	c.Next = cnt.Next.copy()
+	return c
 }
 
 // Len returns size of the HeaderContact length as a string
@@ -216,7 +257,25 @@ func NewRoute(t HType, name string) *HeaderRoute {
 	}
 }
 
-// Len returns size of the HeaderContact length as a string
+// Copy HeaderRoute and returns its pointer
+func (r *HeaderRoute) Copy() AnyHeader {
+	return r.copy()
+}
+
+func (r *HeaderRoute) copy() *HeaderRoute {
+	hr := &HeaderRoute{
+		T:            r.T,
+		NameAddrSpec: r.NameAddrSpec.copy(),
+	}
+
+	if r.Next == nil {
+		return hr
+	}
+	hr.Next = r.Next.copy()
+	return hr
+}
+
+// Len returns size of the HeaderRoute length as a string
 // @impl AnyHeader interface
 func (r *HeaderRoute) Len() int {
 	l := r.NameAddrSpec.Len()

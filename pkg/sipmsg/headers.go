@@ -56,6 +56,7 @@ const (
 
 // AnyHeader interface for any SIP header in Message
 type AnyHeader interface {
+	Copy() AnyHeader
 	Len() int
 	Name() string
 	String() string
@@ -74,6 +75,15 @@ type HeaderGeneric struct {
 	T          HType
 	HeaderName string
 	Value      string
+}
+
+// Copy HeaderGeneric and returns new header pointer
+func (hg *HeaderGeneric) Copy() AnyHeader {
+	return &HeaderGeneric{
+		T:          hg.T,
+		HeaderName: hg.HeaderName,
+		Value:      hg.Value,
+	}
 }
 
 // Type returns HVia type
@@ -125,6 +135,30 @@ func (msg *Message) NewHeaderVia(name string) *HeaderVia {
 	}
 	msg.Headers = append(msg.Headers, via)
 	return via
+}
+
+// Copy create copy of the Via header and return its pointer
+func (via *HeaderVia) Copy() AnyHeader {
+	return via.copy()
+}
+
+func (via *HeaderVia) copy() *HeaderVia {
+	v := &HeaderVia{
+		HeaderName: via.HeaderName,
+		Proto:      via.Proto,
+		Transp:     via.Transp,
+		Host:       via.Host,
+		Port:       via.Port,
+		Branch:     via.Branch,
+		Recvd:      via.Recvd,
+		Params:     via.Params,
+	}
+	if via.Next == nil {
+		return v
+	}
+	v.Next = via.Next.copy() // recursively copy all linked headers
+
+	return v
 }
 
 // LinkNext create *HeaderVia and link it to the caller

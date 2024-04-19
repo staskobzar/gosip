@@ -15,18 +15,16 @@ type DNS interface {
 	LookupAddr(target string) []net.IP
 }
 
-type Packet struct {
-	ReqAddrs   []net.Addr
-	LocalSock  net.Addr
-	RemoteSock net.Addr
-	Message    *sipmsg.Message
-}
-
 // Transport SIP
 type Transport interface {
 	Send(addr netip.AddrPort, msg *sipmsg.Message) error
 	IsReliable() bool
 }
 
-// Transaction SIP
-type Transaction interface{}
+type Packet struct {
+	SendTo     []net.Addr
+	ReqAddrs   []net.Addr
+	LocalSock  net.Addr
+	RemoteSock net.Addr
+	Message    *sipmsg.Message
+}

@@ -21,6 +21,7 @@ func (mgr *Manager) ResolveRURI(pack sipmsg.Packet) {
 			mgr.err <- err
 			return
 		}
+		mgr.serReceived(pack.Message)
 		sippack := sip.Packet{
 			ReqAddrs:   addrs,
 			LocalSock:  pack.Laddr,
@@ -258,6 +259,11 @@ func (mgr *Manager) lookupHost(transp tTransp, target, port string) ([]net.Addr,
 		return nil, fmt.Errorf("%w: failed to resolv host %q: %s", ErrResolv, target, err)
 	}
 	return netAddr(transp, addrs, port)
+}
+
+func (mgr *Manager) serReceived(msg *sipmsg.Message) {
+	// RFC3261 18.2.1 Receiving Requests
+	fmt.Println("TODO: !! set recieved in SIP message Top Via header !!")
 }
 
 func netAddr(transp tTransp, hosts []string, port string) ([]net.Addr, error) {

@@ -107,6 +107,276 @@ func TestParseViaHeaders(t *testing.T) {
 	})
 }
 
+func TestAnyHeaderCopy(t *testing.T) {
+	t.Run("HeaderVia", func(t *testing.T) {
+		t.Run("single", func(t *testing.T) {
+			svia := "v: SIP/2.0/UDP example.com:4000;ttl=16;maddr=224.2.0.1;" +
+				"branch=z9hG4bKa7c6a8dlze.1;received=10.0.0.100;rport"
+			msg, err := Parse(toMsg([]string{svia}))
+			assert.Nil(t, err)
+			via := msg.Find(HVia).(*HeaderVia)
+			v := via.Copy().(*HeaderVia)
+			assert.NotSame(t, via, v)
+			assert.Equal(t, "v", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "UDP", v.Transp)
+			assert.Equal(t, "example.com", v.Host)
+			assert.Equal(t, "4000", v.Port)
+			assert.Equal(t, "z9hG4bKa7c6a8dlze.1", v.Branch)
+			assert.Equal(t, "10.0.0.100", v.Recvd)
+			assert.Equal(t, ";ttl=16;maddr=224.2.0.1;branch=z9hG4bKa7c6a8dlze.1;received=10.0.0.100;rport",
+				v.Params.String())
+			assert.Nil(t, v.Next)
+		})
+
+		t.Run("with linked next", func(t *testing.T) {
+			svia := "via: SIP/2.0/SCTP atlanta.com;branch=ff00aa;ttl=60" +
+				",SIP/2.0/UDP u.pbx.com;branch=z9hG4bKnasff"
+			msg, err := Parse(toMsg([]string{svia}))
+			assert.Nil(t, err)
+			via := msg.Find(HVia).(*HeaderVia)
+			v := via.Copy().(*HeaderVia)
+			assert.NotSame(t, via, v)
+			assert.Equal(t, "via", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "SCTP", v.Transp)
+			assert.Equal(t, "atlanta.com", v.Host)
+			assert.Equal(t, "", v.Port)
+			assert.Equal(t, "ff00aa", v.Branch)
+			assert.Equal(t, "", v.Recvd)
+			assert.Equal(t, ";branch=ff00aa;ttl=60", v.Params.String())
+			assert.NotNil(t, v.Next)
+
+			v = v.Next
+			assert.Equal(t, "", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "UDP", v.Transp)
+			assert.Equal(t, "u.pbx.com", v.Host)
+			assert.Equal(t, "", v.Port)
+			assert.Equal(t, "z9hG4bKnasff", v.Branch)
+			assert.Equal(t, "", v.Recvd)
+			assert.Equal(t, ";branch=z9hG4bKnasff", v.Params.String())
+			assert.Nil(t, v.Next)
+		})
+
+		t.Run("linked multiple", func(t *testing.T) {
+			svia := "Via: SIP/2.0/UDP h1.pbx.com;branch=z9hG4bKnashd" +
+				",SIP/2.0/UDP h2.pbx.com;branch=z9hG4bKnasff;received=10.0.0.1" +
+				", SIP/2.0/TCP h3.pbx.com:11609;branch=z9hG4bKnasfe;maddr=10.0.0.1"
+			msg, err := Parse(toMsg([]string{svia}))
+			assert.Nil(t, err)
+			via := msg.Find(HVia).(*HeaderVia)
+			v := via.Copy().(*HeaderVia)
+			assert.NotSame(t, via, v)
+			assert.Equal(t, "Via", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "UDP", v.Transp)
+			assert.Equal(t, "h1.pbx.com", v.Host)
+			assert.Equal(t, "", v.Port)
+			assert.Equal(t, "z9hG4bKnashd", v.Branch)
+			assert.Equal(t, "", v.Recvd)
+			assert.Equal(t, ";branch=z9hG4bKnashd", v.Params.String())
+			assert.NotNil(t, v.Next)
+
+			v = v.Next
+			assert.Equal(t, "", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "UDP", v.Transp)
+			assert.Equal(t, "h2.pbx.com", v.Host)
+			assert.Equal(t, "", v.Port)
+			assert.Equal(t, "z9hG4bKnasff", v.Branch)
+			assert.Equal(t, "10.0.0.1", v.Recvd)
+			assert.Equal(t, ";branch=z9hG4bKnasff;received=10.0.0.1", v.Params.String())
+			assert.NotNil(t, v.Next)
+
+			v = v.Next
+			assert.Equal(t, "", v.HeaderName)
+			assert.Equal(t, "SIP/2.0/", v.Proto)
+			assert.Equal(t, "TCP", v.Transp)
+			assert.Equal(t, "h3.pbx.com", v.Host)
+			assert.Equal(t, "11609", v.Port)
+			assert.Equal(t, "z9hG4bKnasfe", v.Branch)
+			assert.Equal(t, "", v.Recvd)
+			assert.Equal(t, ";branch=z9hG4bKnasfe;maddr=10.0.0.1", v.Params.String())
+			assert.Nil(t, v.Next)
+		})
+	})
+
+	t.Run("HeaderGeneric", func(t *testing.T) {
+		t.Run("P-Asserted-Identity", func(t *testing.T) {
+			hdr := &HeaderGeneric{HeaderName: "P-Asserted-Identity", Value: "Alice <sip:alice@atlanta.com>", T: HGeneric}
+
+			pai, ok := hdr.Copy().(*HeaderGeneric)
+			assert.True(t, ok)
+			assert.Equal(t, "P-Asserted-Identity", pai.HeaderName)
+			assert.Equal(t, "Alice <sip:alice@atlanta.com>", pai.Value)
+			assert.Equal(t, HGeneric, pai.T)
+		})
+		t.Run("Allow", func(t *testing.T) {
+			hdr := &HeaderGeneric{HeaderName: "Allow", Value: "INVITE, ACK, OPTIONS, CANCEL, BYE", T: HAllow}
+			allow, ok := hdr.Copy().(*HeaderGeneric)
+			assert.True(t, ok)
+			assert.Equal(t, "Allow", allow.HeaderName)
+			assert.Equal(t, "INVITE, ACK, OPTIONS, CANCEL, BYE", allow.Value)
+			assert.Equal(t, HAllow, allow.T)
+		})
+	})
+
+	t.Run("NameAddr", func(t *testing.T) {
+		headers := []string{"To: Alice <sip:alice@biloxi.com;transport=udp>",
+			"From: Bob <sip:bob@atlanta.com>;tag=456248"}
+		msg, err := Parse(toMsg(headers))
+		assert.Nil(t, err)
+
+		t.Run("To header", func(t *testing.T) {
+			hdr, ok := msg.To.Copy().(*NameAddr)
+			assert.True(t, ok)
+			assert.NotSame(t, hdr, msg.To)
+			assert.Equal(t, "To", hdr.HeaderName)
+			assert.Equal(t, "Alice", hdr.DisplayName)
+			assert.NotSame(t, hdr.Addr, msg.To.Addr)
+			assert.Equal(t, "sip:alice@biloxi.com;transport=udp", hdr.Addr.String())
+			assert.Equal(t, "", hdr.Params.str())
+			assert.Equal(t, HTo, hdr.T)
+			assert.Equal(t, "", hdr.Tag)
+		})
+
+		t.Run("From header", func(t *testing.T) {
+			hdr, ok := msg.From.Copy().(*NameAddr)
+			assert.True(t, ok)
+			assert.NotSame(t, hdr, msg.From)
+			assert.Equal(t, "From", hdr.HeaderName)
+			assert.Equal(t, "Bob", hdr.DisplayName)
+			assert.NotSame(t, hdr.Addr, msg.From.Addr)
+			assert.Equal(t, "sip:bob@atlanta.com", hdr.Addr.String())
+			assert.Equal(t, ";tag=456248", hdr.Params.String())
+			assert.Equal(t, HFrom, hdr.T)
+			assert.Equal(t, "456248", hdr.Tag)
+		})
+	})
+
+	t.Run("HeaderRoute", func(t *testing.T) {
+		t.Run("single header", func(t *testing.T) {
+			hdrs := []string{"Record-Route: <sip:h1.domain.com;lr>;host=one"}
+			msg, err := Parse(toMsg(hdrs))
+			assert.Nil(t, err)
+			hdr, ok := msg.Find(HRecordRoute).(*HeaderRoute)
+			assert.True(t, ok)
+			rr, ok := hdr.Copy().(*HeaderRoute)
+			assert.True(t, ok)
+			assert.Equal(t, HRecordRoute, rr.T)
+			assert.Equal(t, "Record-Route", rr.HeaderName)
+			assert.Equal(t, "", rr.DisplayName)
+			assert.NotSame(t, rr.Addr, hdr.Addr)
+			assert.Equal(t, "sip:h1.domain.com;lr", rr.Addr.String())
+			assert.Equal(t, ";host=one", rr.Params.String())
+
+			assert.Nil(t, rr.Next)
+		})
+
+		t.Run("multiple linked headers", func(t *testing.T) {
+			hdrs := []string{
+				"Route: HQ1 <sip:h2.domain.com;lr>, <sip:dd1.pbx.com>;user=pbx,<sips:dd2.pbx.com>",
+			}
+			msg, err := Parse(toMsg(hdrs))
+			assert.Nil(t, err)
+			hdr, ok := msg.Find(HRoute).(*HeaderRoute)
+			assert.True(t, ok)
+			rr, ok := hdr.Copy().(*HeaderRoute)
+			assert.True(t, ok)
+			assert.Equal(t, HRoute, rr.T)
+			assert.Equal(t, "Route", rr.HeaderName)
+			assert.Equal(t, "HQ1", rr.DisplayName)
+			assert.NotSame(t, rr.Addr, hdr.Addr)
+			assert.Equal(t, "sip:h2.domain.com;lr", rr.Addr.String())
+			assert.Equal(t, "", rr.Params.String())
+			assert.NotNil(t, rr.Next)
+
+			rr = rr.Next
+			hdr = hdr.Next
+			assert.Equal(t, HRoute, rr.T)
+			assert.Equal(t, "", rr.HeaderName)
+			assert.Equal(t, "", rr.DisplayName)
+			assert.NotSame(t, rr.Addr, hdr.Addr)
+			assert.Equal(t, "sip:dd1.pbx.com", rr.Addr.String())
+			assert.Equal(t, ";user=pbx", rr.Params.String())
+			assert.NotNil(t, rr.Next)
+
+			rr = rr.Next
+			hdr = hdr.Next
+			assert.Equal(t, HRoute, rr.T)
+			assert.Equal(t, "", rr.HeaderName)
+			assert.Equal(t, "", rr.DisplayName)
+			assert.NotSame(t, rr.Addr, hdr.Addr)
+			assert.Equal(t, "sips:dd2.pbx.com", rr.Addr.String())
+			assert.Equal(t, "", rr.Params.String())
+			assert.Nil(t, rr.Next)
+		})
+	})
+
+	t.Run("HeaderContact", func(t *testing.T) {
+		t.Run("single header", func(t *testing.T) {
+			hdr := "Contact: \"Bob C\" <sip:bob@192.0.2.4>;q=0.5;foo=bar;expires=1800"
+			msg, err := Parse(toMsg([]string{hdr}))
+			assert.Nil(t, err)
+			hct, ok := msg.Find(HContact).(*HeaderContact)
+			assert.True(t, ok)
+			ct, ok := hct.Copy().(*HeaderContact)
+
+			assert.True(t, ok)
+			assert.Equal(t, "Contact", ct.HeaderName)
+			assert.Equal(t, "\"Bob C\"", ct.DisplayName)
+			assert.NotSame(t, ct.Addr, hct.Addr)
+			assert.Equal(t, "sip:bob@192.0.2.4", ct.Addr.String())
+			assert.Equal(t, ";q=0.5;foo=bar;expires=1800", ct.Params.String())
+			assert.Equal(t, "0.5", ct.Q)
+			assert.Equal(t, "1800", ct.Expires)
+			assert.Nil(t, ct.Next)
+		})
+
+		t.Run("multiple linked headers", func(t *testing.T) {
+			hdr := "m: <sip:100@192.0.2.4>;expires=800,<sip:100@10.0.0.4:4555>;q=0.5, <sip:100@[2041:0:140F::875B:131B]>"
+			msg, err := Parse(toMsg([]string{hdr}))
+			assert.Nil(t, err)
+
+			hct, ok := msg.Find(HContact).(*HeaderContact)
+			assert.True(t, ok)
+			ct, ok := hct.Copy().(*HeaderContact)
+			assert.True(t, ok)
+			assert.Equal(t, "m", ct.HeaderName)
+			assert.Equal(t, "", ct.DisplayName)
+			assert.NotSame(t, ct.Addr, hct.Addr)
+			assert.Equal(t, "sip:100@192.0.2.4", ct.Addr.String())
+			assert.Equal(t, ";expires=800", ct.Params.String())
+			assert.Equal(t, "", ct.Q)
+			assert.Equal(t, "800", ct.Expires)
+			assert.NotNil(t, ct.Next)
+
+			ct = ct.Next
+			hct = hct.Next
+			assert.Equal(t, "", ct.HeaderName)
+			assert.Equal(t, "", ct.DisplayName)
+			assert.NotSame(t, ct.Addr, hct.Addr)
+			assert.Equal(t, "sip:100@10.0.0.4:4555", ct.Addr.String())
+			assert.Equal(t, ";q=0.5", ct.Params.String())
+			assert.Equal(t, "0.5", ct.Q)
+			assert.Equal(t, "", ct.Expires)
+			assert.NotNil(t, ct.Next)
+
+			ct = ct.Next
+			hct = hct.Next
+			assert.Equal(t, "", ct.HeaderName)
+			assert.Equal(t, "", ct.DisplayName)
+			assert.NotSame(t, ct.Addr, hct.Addr)
+			assert.Equal(t, "sip:100@[2041:0:140F::875B:131B]", ct.Addr.String())
+			assert.Equal(t, "", ct.Params.String())
+			assert.Equal(t, "", ct.Q)
+			assert.Equal(t, "", ct.Expires)
+			assert.Nil(t, ct.Next)
+		})
+	})
+}
+
 func TestHeaderViaStringLen(t *testing.T) {
 	tests := map[string]struct {
 		via  *HeaderVia

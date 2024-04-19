@@ -95,9 +95,9 @@ func Init() *Manager {
 	return &Manager{
 		sock:   NewStore[Listener](),
 		conn:   NewStore[Conn](),
-		rcv:    make(chan Packet, 32),
-		resolv: make(chan sip.Packet, 32),
-		err:    make(chan error, 32),
+		rcv:    make(chan Packet),     // 32),
+		resolv: make(chan sip.Packet), // 32),
+		err:    make(chan error),      // 32),
 	}
 }
 
@@ -134,15 +134,25 @@ func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
 	return nil
 }
 
-func (mgr *Manager) Send(src, dst net.Addr, msg *sipmsg.Message) error {
-	switch src.Network() {
-	case "udp":
-		return mgr.SendUDP(src, dst, msg)
-	case "tcp":
-		return mgr.SendTCP(src, dst, msg)
-	default:
-		return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, src.Network())
+func (mgr *Manager) Send(pack *sip.Packet) error {
+	if pack.Message == nil {
+		return fmt.Errorf("%w: invalid SIP Message <nil> when trying to send packet")
 	}
+	logger.Log("sending pack %q with local socket %q and remote socket %q",
+		pack.Message.FirstLine(), pack.LocalSock, pack.RemoteSock)
+	// TODO: assure pack.SendTo exists
+	for _, dst := range pack.SendTo {
+		logger.Log("send to destination addr %q", dst)
+		switch dst.Network() {
+		case "udp":
+			return mgr.SendUDP(pack.LocalSock, dst, pack.Message)
+		case "tcp":
+			return mgr.SendTCP(pack.LocalSock, dst, pack.Message)
+		default:
+			return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, dst.Network())
+		}
+	}
+	return fmt.Errorf("%w: failed to send message %q", ErrSend, pack.Message.FirstLine())
 }
 
 func (mgr *Manager) SendUDP(src, dst net.Addr, msg *sipmsg.Message) error {

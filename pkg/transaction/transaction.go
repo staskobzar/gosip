@@ -1,152 +1,96 @@
 package transaction
 
 import (
-	"errors"
+	"gosip/pkg/logger"
 	"gosip/pkg/sip"
 	"gosip/pkg/sipmsg"
-	"net/netip"
-	"sync/atomic"
-	"time"
+	"gosip/pkg/transaction/internal/state"
+	"gosip/pkg/transaction/internal/timer"
 )
 
-const (
-	Unknown uint32 = iota
-	Calling
-	Trying
-	Proceeding
-	Completed
-	Terminated
-)
-
-var (
-	ErrTimeout = errors.New("SIP Timeout")
-)
-
-type EndPoint interface {
-	TUConsume(msg *sipmsg.Message)
-	Error(err error, msg *sipmsg.Message)
-	TxnDestroy(ID string)
+type Transaction struct {
+	req   *sip.Packet
+	layer *Layer
+	state *state.State
+	timer *timer.Timer
 }
 
-type Basic struct {
-	transp   sip.Transport
-	endpoint EndPoint
-	req      *sipmsg.Message
-	state    *atomic.Uint32
-	timer    Timer
-	addr     netip.AddrPort
-	halt     chan struct{}
-}
-
-type Timer struct {
-	T1 time.Duration
-	T2 time.Duration
-	T4 time.Duration
-	D  time.Duration
-}
-
-func initTimer() Timer {
-	return Timer{
-		T1: 500 * time.Millisecond,
-		T2: 4 * time.Second,
-		T4: 5 * time.Second,
-		D:  32 * time.Second,
+func newTransaction(pack *sip.Packet, layer *Layer) *Transaction {
+	return &Transaction{
+		req:   pack,
+		layer: layer,
+		state: state.New(),
+		timer: timer.New(),
 	}
 }
 
-func initBasicTxn(transp sip.Transport, endpoint EndPoint, msg *sipmsg.Message) Basic {
-	state := new(atomic.Uint32)
-	state.Store(Unknown)
-	return Basic{
-		transp:   transp,
-		endpoint: endpoint,
-		req:      msg,
-		state:    state,
-		timer:    initTimer(),
-		halt:     make(chan struct{}),
+func (txn *Transaction) BranchID() string {
+	if via := txn.reqTopVia(); via != nil {
+		return via.Branch
 	}
+	return ""
 }
 
-func (txn Basic) ID() string {
-	return txn.req.TopViaBranch()
+func (txn *Transaction) MatchClient(msg *sipmsg.Message) bool {
+	return false
 }
 
-func (txn Basic) Send(msg *sipmsg.Message) {
-	err := txn.transp.Send(txn.addr, msg)
-	if err != nil {
-		txn.state.Store(Terminated)
-		txn.endpoint.Error(err, msg)
-	}
-}
-
-func (txn Basic) terminate() {
-	// channel halt is only to be closed and not supposed to receive anything
-	select {
-	case <-txn.halt:
-		// channel is already closed
-	default:
-		close(txn.halt)
-	}
-	txn.state.Store(Terminated)
-	txn.endpoint.TxnDestroy(txn.ID())
-}
-
-type Transaction interface {
-	Consume(msg *sipmsg.Message)
-	ID() string
-	Init(msg *sipmsg.Message, addr netip.AddrPort)
-}
-
-type pool map[string]Transaction
-
-type Layer struct {
-	pool pool
-}
-
-// EndPoint is actually an interface to TU
-func New(endpoint EndPoint) *Layer {
-	return &Layer{
-		pool: make(pool),
-	}
-}
-
-// client transaction create
-// used by TU to start new transaction
-func (txl *Layer) Client(msg *sipmsg.Message, transp sip.Transport, addr netip.AddrPort) {
-	var txn Transaction
-	if msg.SIPMethod() == "INVITE" {
-		txn = createClientInvite(transp, txl, msg)
-	} else {
-		txn = createClientNonInvite(transp, txl, msg)
+// MatchServer tries to match request to transaction
+// following rfc3261#17.2.3 Matching Requests to Server Transactions
+func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
+	reqvia := txn.reqTopVia()
+	if reqvia == nil {
+		logger.Wrn("initial request message top Via header not found")
+		return false
 	}
 
-	txn.Init(msg, addr)
-
-	txl.push(txn)
-}
-
-// consume new message from transport
-// match existing or create new Server transaction
-func (txl *Layer) Consume(msg *sipmsg.Message, transp sip.Transport, addr netip.AddrPort) {
-	if txn, exists := txl.pool[msg.TopViaBranch()]; exists {
-		txn.Consume(msg)
-	} else {
-		// new server txn
+	incomevia := msg.TopVia()
+	if incomevia == nil {
+		logger.Wrn("incoming message top Via header not found for %s %s",
+			msg.Method, msg.RURI)
+		return false
 	}
+	// TODO: it should have a check if branch starts with "z9hG4bK"
+	// and if not handle backwards compatibility with RFC 2543
+
+	// 1. the branch parameter in the request is equal to the one in the
+	// top Via header field of the request that created the transaction, and
+	if reqvia.Branch != incomevia.Branch {
+		logger.Log("incoming message top Via branch %q not matching transaction branch %q",
+			incomevia.Branch, reqvia.Branch)
+		return false
+	}
+
+	// 2. the sent-by value in the top Via of the request is equal to the
+	// one in the request that created the transaction, and
+	if len(reqvia.Host) == 0 || (reqvia.Host != incomevia.Host && reqvia.Port != incomevia.Port) {
+		logger.Wrn("request top via branch host %q port %q does not match incoming host %q port %q",
+			reqvia.Host, reqvia.Port, incomevia.Host, incomevia.Port)
+		return false
+	}
+
+	// 3. the method of the request matches the one that created the
+	// transaction, except for ACK, where the method of the request
+	// that created the transaction is INVITE.
+	if msg.IsMethod("ACK") {
+		logger.Wrn("unexpected ACK in server transaction match")
+		return false
+	}
+
+	return txn.req.Message.IsMethod(msg.Method)
 }
 
-func (txl *Layer) TxnDestroy(txnID string) {
-	delete(txl.pool, txnID)
+func (txn *Transaction) reqTopVia() *sipmsg.HeaderVia {
+	msg := txn.reqMessage()
+	if msg == nil {
+		return nil
+	}
+	return txn.req.Message.TopVia()
 }
 
-func (txl *Layer) TUConsume(msg *sipmsg.Message) {
-	// TODO send to chan msg
-}
-
-func (txl *Layer) Error(err error, msg *sipmsg.Message) {
-	// TODO send err to upstream chan
-}
-
-func (txl *Layer) push(txn Transaction) {
-	txl.pool[txn.ID()] = txn
+func (txn *Transaction) reqMessage() *sipmsg.Message {
+	if txn.req == nil {
+		return nil
+	}
+	return txn.req.Message
 }

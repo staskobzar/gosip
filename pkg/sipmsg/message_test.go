@@ -184,7 +184,7 @@ func TestMessageRequestString(t *testing.T) {
 		"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
 		"Call-ID: 843817637684230@998sdasdh09\r\n" +
 		"CSeq: 1826 REGISTER\r\n" +
-		"Contact: <sip:bob@192.0.2.4>\r\n" +
+		"Contact: <sip:bob@192.0.2.4>;methods=\"INVITE, ACK, BYE, CANCEL, OPTIONS, INFO, MESSAGE, SUBSCRIBE, NOTIFY, PRACK, UPDATE, REFER\"\r\n" +
 		"Expires: 7200\r\n\r\n"
 
 	msg, err := Parse(input)
@@ -249,6 +249,52 @@ func TestMessageRequestNone200Ack(t *testing.T) {
 	assert.Equal(t, req.Find(HRoute).String(), ack.Find(HRoute).String())
 
 	assert.Equal(t, wantAck, ack.String())
+}
+
+func TestMessageResponse(t *testing.T) {
+	t.Run("create response with basic headers", func(t *testing.T) {
+		//nolint:goconst
+		input := "INVITE sip:bob@biloxi.com SIP/2.0\r\n" +
+			"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK776asdhds.1,SIP/2.0/TCP 10.1.1.200;branch=z9Hff0\r\n" +
+			"Via: SIP/2.0/UDP pc22.atlanta.com;branch=z9hG4bK776asdhds.2;ttl=19\r\n" +
+			"X-Foo: v1\r\n" +
+			"Max-Forwards: 70\r\n" +
+			"X-Foo: v2\r\n" +
+			"To: Bob <sip:bob@biloxi.com>\r\n" +
+			"From: Alice <sip:alice@atlanta.com>;tag=1928301774\r\n" +
+			"Call-ID: a84b4c76e66710@pc33.atlanta.com\r\n" +
+			"CSeq: 314159 INVITE\r\n" +
+			"Allow: INVITE, ACK, OPTIONS, CANCEL, BYE\r\n" +
+			"X-Foo: v3\r\n" +
+			"Contact: <sip:alice@pc33.atlanta.com>\r\n\r\n"
+
+		req, err := Parse(input)
+		assert.Nil(t, err)
+
+		res := req.Response(100, "Trying")
+		assert.True(t, res.IsResponse())
+		assert.Equal(t, "100", res.Code)
+		assert.Equal(t, "Trying", res.Reason)
+		assert.Equal(t, "INVITE", res.Method)
+
+		vias := req.FindAll(HVia)
+		assert.Equal(t, 2, vias.Len())
+		via := vias[0].(*HeaderVia)
+		assert.Equal(t, "Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK776asdhds.1,SIP/2.0/TCP 10.1.1.200;branch=z9Hff0",
+			via.String())
+		assert.NotNil(t, via.Next)
+
+		assert.Equal(t, "To: Bob <sip:bob@biloxi.com>", res.To.String())
+		assert.NotSame(t, req.To, res.To)
+		assert.Same(t, res.Find(HTo), res.To)
+
+		assert.Equal(t, "From: Alice <sip:alice@atlanta.com>;tag=1928301774", res.From.String())
+		assert.NotSame(t, req.From, res.From)
+		assert.Same(t, res.Find(HFrom), res.From)
+
+		assert.Equal(t, "a84b4c76e66710@pc33.atlanta.com", res.CallID)
+		assert.NotNil(t, res.Find(HCallID))
+	})
 }
 
 func TestMessageLen(t *testing.T) {

@@ -1,8 +1,14 @@
 package sipmsg
 
 import (
+	"errors"
 	"slices"
 	"strconv"
+	"strings"
+)
+
+var (
+	ErrCopy = errors.New("sipmsg header copy")
 )
 
 // Message represence SIP request or response messager
@@ -33,6 +39,12 @@ func NewMessage() *Message {
 // Byte returns *Message as byte
 func (msg *Message) Byte() []byte { return []byte(msg.String()) }
 
+// IsInvite returns true if message is request and method is INVITE
+func (msg *Message) IsInvite() bool { return msg.IsMethod("INVITE") }
+
+// IsMethod case-insensitive method compare to given string
+func (msg *Message) IsMethod(method string) bool { return strings.EqualFold(msg.Method, method) }
+
 // IsResponse returns true if Message is SIP response
 func (msg *Message) IsResponse() bool { return msg.t == HResponse }
 
@@ -51,19 +63,40 @@ func (msg *Message) ResponseCode() int {
 	return code
 }
 
+// IsProvisional returns true if message is Response and
+// response code is between 100 and 199
+func (msg *Message) IsProvisional() bool { return msg.codePrefix('1') }
+
+// IsFinalResponse returns true if response code is any of 2xx, 3xx, 4xx, 5xx or 6xx
+func (msg *Message) IsFinalResponse() bool {
+	for _, c := range []byte("23456") {
+		if msg.codePrefix(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // TopViaBranch returns top Via header branch parameter
 func (msg *Message) TopViaBranch() string {
+	if via := msg.TopVia(); via != nil {
+		return via.Branch
+	}
+
+	return ""
+}
+
+// TopVia returns first, top Via header
+func (msg *Message) TopVia() *HeaderVia {
 	hdr := msg.Find(HVia)
 	if hdr == nil {
-		return ""
+		return nil
 	}
-
 	via, ok := hdr.(*HeaderVia)
 	if !ok {
-		return ""
+		return nil
 	}
-
-	return via.Branch
+	return via
 }
 
 // ACK returns ACK message generated from initial request
@@ -79,18 +112,30 @@ func (msg *Message) ACK(resp *Message) *Message {
 	ack.Method = "ACK"
 	ack.RURI = msg.RURI
 
-	ack.Append(HGeneric, msg.Find(HVia))
+	if topVia := msg.Find(HVia); topVia != nil {
+		// The ACK MUST contain a single Via header field, and
+		// this MUST be equal to the top Via header field of the original
+		// request.
+
+		// TODO: test top only Via copy WITHOUT linked headers
+		if via, ok := topVia.(*HeaderVia); ok {
+			viacopy := via.copy()
+			viacopy.Next = nil // remove linked Via if exist
+			ack.Append(HGeneric, viacopy)
+		}
+	}
+
 	ack.MaxFwd = 70
 	ack.Append(HGeneric, &HeaderGeneric{T: HMaxForwards, HeaderName: "Max-Forwards", Value: "70"})
 
 	for _, r := range msg.FindAll(HRoute) {
-		ack.Append(HGeneric, r)
+		ack.Append(HGeneric, r.Copy())
 	}
 
-	ack.From = msg.From
+	ack.From = msg.From.copy()
 	ack.Append(HGeneric, ack.From)
 
-	ack.To = resp.To
+	ack.To = resp.To.copy()
 	ack.Append(HGeneric, ack.To)
 
 	ack.CallID = msg.CallID
@@ -102,6 +147,37 @@ func (msg *Message) ACK(resp *Message) *Message {
 	ack.Append(HGeneric, &HeaderGeneric{T: HContentLength, HeaderName: "Content-Length", Value: "0"})
 
 	return ack
+}
+
+// Response creates SIP response message with given code and reason
+// message and setup headers as it defines in rfc3261#8.2.6.2
+func (msg *Message) Response(code int, reason string) *Message {
+	res := NewMessage()
+	res.t = HResponse
+	res.Method = msg.Method
+	res.Code = strconv.Itoa(code)
+	res.Reason = reason
+
+	// copy headers
+
+	for _, via := range msg.FindAll(HVia) {
+		res.Append(HGeneric, via.Copy())
+	}
+
+	// just copy To header and let UA to append Tag if needed
+	res.To = msg.To.copy()
+	res.Append(HGeneric, res.To)
+
+	res.From = msg.From.copy()
+	res.Append(HGeneric, res.From)
+
+	res.CallID = msg.CallID
+	res.Append(HGeneric, &HeaderGeneric{T: HCallID, HeaderName: "Call-ID", Value: msg.CallID})
+
+	res.CSeq = msg.CSeq
+	res.Append(HGeneric, &HeaderGeneric{T: HCSeq, HeaderName: "CSeq", Value: strconv.Itoa(msg.CSeq) + " ACK"})
+
+	return res
 }
 
 // Append SIP Header to Message. Will search for the first accurence
@@ -162,14 +238,17 @@ func (msg *Message) FindByNameAll(name string) Headers {
 	return msg.findAll(func(h AnyHeader) bool { return h.Name() == name })
 }
 
+// FirstLine SIP message request or response first line
+// handy for logs and debugging
+func (msg *Message) FirstLine() string {
+	buf := NewStringer(msg.firstLineLen())
+	msg.firstLine(buf)
+	return buf.String()
+}
+
 func (msg *Message) Len() int {
 	crln := 2
-	l := 9 // "SIP/2.0" + spaces
-	if msg.t == HRequest {
-		l += len(msg.Method) + msg.RURI.Len()
-	} else {
-		l += len(msg.Code) + len(msg.Reason)
-	}
+	l := msg.firstLineLen()
 	l += crln
 
 	for _, hdr := range msg.Headers {
@@ -194,6 +273,13 @@ func (msg *Message) String() string {
 	return buf.String()
 }
 
+func (msg *Message) codePrefix(c byte) bool {
+	if len(msg.Code) == 0 {
+		return false
+	}
+	return msg.Code[0] == c
+}
+
 func (msg *Message) firstLine(buf *Stringer) {
 	if msg.IsResponse() {
 		buf.Print("SIP/2.0 ", msg.Code, " ", msg.Reason, "\r\n")
@@ -202,6 +288,14 @@ func (msg *Message) firstLine(buf *Stringer) {
 	buf.Print(msg.Method, " ")
 	msg.RURI.Stringify(buf)
 	buf.Print(" SIP/2.0\r\n")
+}
+
+func (msg *Message) firstLineLen() int {
+	ver := 9 // "SIP/2.0" + spaces
+	if msg.t == HRequest {
+		return ver + len(msg.Method) + msg.RURI.Len()
+	}
+	return len(msg.Code) + len(msg.Reason) + ver
 }
 
 func (msg *Message) find(match func(h AnyHeader) bool) AnyHeader {

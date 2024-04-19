@@ -55,3 +55,14 @@ func (uri *URI) Len() int {
 	}
 	return l
 }
+
+func (uri *URI) Copy() *URI {
+	return &URI{
+		Scheme:    uri.Scheme,
+		Userinfo:  uri.Userinfo,
+		Hostport:  uri.Hostport,
+		Params:    uri.Params,
+		Transport: uri.Transport,
+		Headers:   uri.Headers,
+	}
+}
