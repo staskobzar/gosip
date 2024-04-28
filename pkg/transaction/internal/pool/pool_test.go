@@ -10,11 +10,17 @@ import (
 
 type mockTxn struct {
 	branch string
+	match  bool
 }
 
-func (*mockTxn) Consume(*sip.Packet)                       {}
-func (*mockTxn) Match(*sipmsg.Message) (Transaction, bool) { return nil, false }
-func (t *mockTxn) BranchID() string                        { return t.branch }
+func (*mockTxn) Consume(*sip.Packet) {}
+func (t *mockTxn) Match(*sipmsg.Message) (Transaction, bool) {
+	if t.match {
+		return t, true
+	}
+	return nil, false
+}
+func (t *mockTxn) BranchID() string { return t.branch }
 
 func TestPool(t *testing.T) {
 	p := New()
@@ -65,5 +71,48 @@ func TestPool(t *testing.T) {
 		assert.Equal(t, 1, p.Len())
 		p.Delete(txn)
 		assert.Equal(t, 1, p.Len())
+	})
+}
+
+func TestPoolMatch(t *testing.T) {
+	inputReq := "INVITE sip:bob@biloxi.example.com SIP/2.0\r\n" +
+		"Via: SIP/2.0/TCP atlanta.com;branch=z9hG4bK74b43\r\n" +
+		"From: Alice <sip:alice@atlanta.example.com>;tag=9fxced76sl\r\n" +
+		"To: Bob <sip:bob@biloxi.example.com>\r\n" +
+		"Call-ID: 384827@e.com\r\n" +
+		"CSeq: 1 INVITE\r\n\r\n"
+	msg, _ := sipmsg.Parse(inputReq)
+
+	t.Run("false when txn no found", func(t *testing.T) {
+		p := New()
+		assert.Equal(t, 0, p.Len())
+		assert.Equal(t, 0, p.Len())
+		transac, ok := p.Match(msg)
+		assert.False(t, ok)
+		assert.Nil(t, transac)
+	})
+
+	t.Run("true when match txn", func(t *testing.T) {
+		p := New()
+		assert.Equal(t, 0, p.Len())
+		txn := &mockTxn{branch: "z9hG4bK74b43", match: true}
+		err := p.Add(txn)
+		assert.Nil(t, err)
+		assert.Equal(t, 1, p.Len())
+		transac, ok := p.Match(msg)
+		assert.True(t, ok)
+		assert.Same(t, txn, transac)
+	})
+
+	t.Run("false when txn not match", func(t *testing.T) {
+		p := New()
+		assert.Equal(t, 0, p.Len())
+		txn := &mockTxn{branch: "foo", match: false}
+		err := p.Add(txn)
+		assert.Nil(t, err)
+		assert.Equal(t, 1, p.Len())
+		transac, ok := p.Match(msg)
+		assert.False(t, ok)
+		assert.Nil(t, transac)
 	})
 }

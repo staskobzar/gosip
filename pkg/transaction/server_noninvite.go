@@ -34,54 +34,49 @@ func (txn *ServerNonInvite) Consume(pack *sip.Packet) {
 	logger.Log("txn:srv:noninv: consume message %q while state is %q",
 		msg.FirstLine(), txn.state.String())
 
-	if msg.IsResponse() {
-		logger.Log("txn:srv:noninv: recv response %s %s", msg.Code, msg.Reason)
-		if txn.state.IsTrying() {
-			logger.Log("txn:srv:noninv: is in trying state")
-			if msg.IsProvisional() {
-				logger.Log("txn:srv:noninv: moved to proceeding state")
-				txn.state.Set(state.Proceeding)
-				txn.response = pack
-				txn.layer.passToTransp(pack)
-				return
-			}
-
-			if msg.IsFinalResponse() {
-				txn.completed(pack)
-				return
-			}
-		}
-
-		if txn.state.IsProceeding() {
-			logger.Log("txn:srv:noninv: is in proceeding state")
-			if msg.IsProvisional() {
-				txn.response = pack
-				txn.layer.passToTransp(pack)
-				return
-			}
-
-			if msg.IsFinalResponse() {
-				txn.completed(pack)
-				return
-			}
-		}
-
-		if txn.state.IsCompleted() {
-			logger.Log("txn:srv:noninv: is in completed state")
-			// Any other final responses passed by the TU to the server
-			// transaction MUST be discarded while in the "Completed" state.
-			return
-		}
-	} else {
+	if msg.IsRequest() {
 		logger.Log("txn:srv:noninv: re-transmitting request %q", pack.Message.FirstLine())
 		// Request re-transmissions
 		// resend last response
 		if txn.state.IsProceeding() || txn.state.IsCompleted() {
 			txn.layer.passToTransp(txn.response)
-			return
 		}
-		//
+		return
 	}
+
+	logger.Log("txn:srv:noninv: recv response %s %s", msg.Code, msg.Reason)
+	if txn.state.IsTrying() || txn.state.IsProceeding() {
+		logger.Log("txn:srv:noninv: state is %q", txn.state.String())
+		if msg.IsProvisional() {
+			txn.proceed(pack)
+		}
+
+		if msg.IsFinalResponse() {
+			txn.completed(pack)
+		}
+		return
+	}
+
+	if txn.state.IsCompleted() {
+		logger.Log("txn:srv:noninv: response is discarded in completed state")
+		// Any other final responses passed by the TU to the server
+		// transaction MUST be discarded while in the "Completed" state.
+		return
+	}
+}
+
+func (txn *ServerNonInvite) Match(msg *sipmsg.Message) (pool.Transaction, bool) {
+	if txn.MatchServer(msg) {
+		return txn, true
+	}
+	return nil, false
+}
+
+func (txn *ServerNonInvite) proceed(pack *sip.Packet) {
+	logger.Log("txn:srv:noninv: proceeding")
+	txn.state.Set(state.Proceeding)
+	txn.response = pack
+	txn.layer.passToTransp(pack)
 }
 
 func (txn *ServerNonInvite) completed(pack *sip.Packet) {
@@ -95,11 +90,4 @@ func (txn *ServerNonInvite) completed(pack *sip.Packet) {
 		logger.Log("txn:srv:noninv: done timer J. set terminated state and destroy transaction")
 		txn.layer.Destroy(txn)
 	}()
-}
-
-func (txn *ServerNonInvite) Match(msg *sipmsg.Message) (pool.Transaction, bool) {
-	if txn.MatchServer(msg) {
-		return txn, true
-	}
-	return nil, false
 }
