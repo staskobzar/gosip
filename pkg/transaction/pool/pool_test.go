@@ -60,16 +60,14 @@ func TestPool(t *testing.T) {
 	})
 
 	t.Run("delete txn", func(t *testing.T) {
-		txn := &mockTxn{branch: "bar"}
 		assert.Equal(t, 2, p.Len())
-		p.Delete(txn)
+		p.Delete("bar")
 		assert.Equal(t, 1, p.Len())
 	})
 
 	t.Run("delete txn that does not exist", func(t *testing.T) {
-		txn := &mockTxn{branch: "xyz"}
 		assert.Equal(t, 1, p.Len())
-		p.Delete(txn)
+		p.Delete("xyz")
 		assert.Equal(t, 1, p.Len())
 	})
 }

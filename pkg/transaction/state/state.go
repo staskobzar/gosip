@@ -32,6 +32,7 @@ func (st *State) Set(v Type) {
 func (st *State) IsTrying() bool     { return st.is(Trying) }
 func (st *State) IsProceeding() bool { return st.is(Proceeding) }
 func (st *State) IsCompleted() bool  { return st.is(Completed) }
+func (st *State) IsTerminated() bool { return st.is(Terminated) }
 
 func (st *State) String() string {
 	st.mu.RLock()

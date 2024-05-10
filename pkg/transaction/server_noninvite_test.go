@@ -2,27 +2,12 @@ package transaction
 
 import (
 	"gosip/pkg/sip"
-	"gosip/pkg/sipmsg"
+	"gosip/pkg/transaction/timer"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func mockRegisterMsg() *sipmsg.Message {
-	input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
-		"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n" +
-		"Max-Forwards: 70\r\n" +
-		"To: Bob <sip:bob@biloxi.com>\r\n" +
-		"From: Bob <sip:bob@biloxi.com>;tag=456248\r\n" +
-		"Call-ID: 843817637684230@998sdasdh09\r\n" +
-		"CSeq: 1826 REGISTER\r\n" +
-		"Contact: <sip:bob@192.0.2.4>\r\n" +
-		"Expires: 7200\r\n\r\n"
-	msg, _ := sipmsg.Parse(input)
-
-	return msg
-}
 
 func TestInitServerNonInvite(t *testing.T) {
 	layer := Init()
@@ -38,11 +23,12 @@ func TestInitServerNonInvite(t *testing.T) {
 func TestServerNonInviteConsume(t *testing.T) {
 	createLayerTxn := func(t *testing.T) *ServerNonInvite {
 		layer := Init()
-		pack := &sip.Packet{
-			Message: mockRegisterMsg(),
+		pack := &sip.Packet{Message: mockRegisterMsg()}
+		layer.SetupTimers = func(t *timer.Timer) *timer.Timer {
+			t.J = time.Millisecond
+			return t
 		}
 		txn := initServerNonInvite(pack, layer)
-		txn.timer.J = time.Millisecond // reset to low value
 		assert.True(t, txn.state.IsTrying())
 		assert.Same(t, txn.req, <-txn.layer.sndTU)
 		return txn
@@ -168,9 +154,12 @@ func TestServerNonInviteConsume(t *testing.T) {
 		t.Skip("TODO with transport")
 	})
 
-	t.Run("timer j in completed state mote to terminated", func(t *testing.T) {
+	t.Run("timer j in completed state move to terminated", func(t *testing.T) {
 		txn := createLayerTxn(t)
-		txn.timer.J = 10 * time.Millisecond // reset to low value
+		txn.layer.SetupTimers = func(t *timer.Timer) *timer.Timer {
+			t.J = 10 * time.Millisecond // reset to low value
+			return t
+		}
 		txn.layer.pool.Add(txn)
 		assert.Equal(t, 1, txn.layer.pool.Len())
 
@@ -180,8 +169,9 @@ func TestServerNonInviteConsume(t *testing.T) {
 		txn.Consume(resp)
 		assert.True(t, txn.state.IsCompleted())
 		assert.Equal(t, 1, txn.layer.pool.Len())
-		<-time.After(11 * time.Millisecond)
-		assert.Equal(t, 0, txn.layer.pool.Len())
+		assert.Eventually(t, func() bool {
+			return txn.layer.pool.Len() == 0
+		}, 12*time.Millisecond, 2*time.Millisecond)
 	})
 }
 

@@ -4,8 +4,8 @@ import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
 	"gosip/pkg/sipmsg"
-	"gosip/pkg/transaction/internal/state"
-	"gosip/pkg/transaction/internal/timer"
+	"gosip/pkg/transaction/state"
+	"gosip/pkg/transaction/timer"
 )
 
 type Transaction struct {
@@ -13,14 +13,23 @@ type Transaction struct {
 	layer *Layer
 	state *state.State
 	timer *timer.Timer
+	halt  chan struct{}
 }
 
 func newTransaction(pack *sip.Packet, layer *Layer) *Transaction {
+	timerSetup := func() *timer.Timer {
+		if layer.SetupTimers == nil {
+			return timer.New()
+		}
+		return layer.SetupTimers(timer.New())
+	}
+
 	return &Transaction{
 		req:   pack,
 		layer: layer,
 		state: state.New(),
-		timer: timer.New(),
+		timer: timerSetup(),
+		halt:  make(chan struct{}),
 	}
 }
 
@@ -31,7 +40,21 @@ func (txn *Transaction) BranchID() string {
 	return ""
 }
 
+// IsTranspReliable returns true if transport is not UDP
+func (txn *Transaction) IsReliable() bool {
+	if txn.req == nil || len(txn.req.SendTo) == 0 {
+		return false
+	}
+	switch txn.req.SendTo[0].Network() {
+	case "udp", "udp4", "udp6":
+		return false
+	default:
+		return true
+	}
+}
+
 func (txn *Transaction) MatchClient(msg *sipmsg.Message) bool {
+	// TODO: implement match client rfc3261#17.1.3
 	return false
 }
 
@@ -78,6 +101,19 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 	}
 
 	return txn.req.Message.IsMethod(msg.Method)
+}
+
+// stop all running background timers and actions
+// remove transaction from the store
+func (txn *Transaction) terminate() {
+	select {
+	case <-txn.halt:
+		// channel is already closed
+	default:
+		close(txn.halt)
+	}
+	txn.state.Set(state.Terminated)
+	txn.layer.Destroy(txn.BranchID())
 }
 
 func (txn *Transaction) reqTopVia() *sipmsg.HeaderVia {

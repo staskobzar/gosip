@@ -4,8 +4,7 @@ import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
 	"gosip/pkg/sipmsg"
-	"gosip/pkg/transaction/internal/pool"
-	"gosip/pkg/transaction/internal/state"
+	"gosip/pkg/transaction/state"
 )
 
 type ServerNonInvite struct {
@@ -65,7 +64,7 @@ func (txn *ServerNonInvite) Consume(pack *sip.Packet) {
 	}
 }
 
-func (txn *ServerNonInvite) Match(msg *sipmsg.Message) (pool.Transaction, bool) {
+func (txn *ServerNonInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	if txn.MatchServer(msg) {
 		return txn, true
 	}
@@ -85,9 +84,12 @@ func (txn *ServerNonInvite) completed(pack *sip.Packet) {
 	txn.layer.passToTransp(pack)
 	txn.state.Set(state.Completed)
 	go func() {
-		<-txn.timer.FireJ()
-		txn.state.Set(state.Terminated)
+		select {
+		case <-txn.timer.FireJ():
+		case <-txn.halt:
+			return
+		}
 		logger.Log("txn:srv:noninv: done timer J. set terminated state and destroy transaction")
-		txn.layer.Destroy(txn)
+		txn.terminate()
 	}()
 }

@@ -11,24 +11,18 @@ import (
 
 var Error = errors.New("transactions:pool")
 
-type Transaction interface {
-	BranchID() string
-	Consume(*sip.Packet)
-	Match(msg *sipmsg.Message) (Transaction, bool)
-}
-
 type Pool struct {
 	mu sync.RWMutex
-	m  map[string]Transaction
+	m  map[string]sip.Transaction
 }
 
 func New() *Pool {
 	return &Pool{
-		m: make(map[string]Transaction),
+		m: make(map[string]sip.Transaction),
 	}
 }
 
-func (p *Pool) Add(txn Transaction) error {
+func (p *Pool) Add(txn sip.Transaction) error {
 	if _, ok := p.Get(txn.BranchID()); ok {
 		return fmt.Errorf("%w: already exists %q", Error, txn.BranchID())
 	}
@@ -37,12 +31,12 @@ func (p *Pool) Add(txn Transaction) error {
 	return nil
 }
 
-func (p *Pool) Delete(txn Transaction) {
-	p.del(txn)
+func (p *Pool) Delete(id string) {
+	p.del(id)
 	logger.Log("txn:pool: number of transactions in the pool after delete: %d", p.Len())
 }
 
-func (p *Pool) Get(branch string) (Transaction, bool) {
+func (p *Pool) Get(branch string) (sip.Transaction, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	txn, ok := p.m[branch]
@@ -55,7 +49,7 @@ func (p *Pool) Len() int {
 	return len(p.m)
 }
 
-func (p *Pool) Match(msg *sipmsg.Message) (Transaction, bool) {
+func (p *Pool) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	branch := msg.TopViaBranch()
 	txn, found := p.Get(branch)
 	if !found {
@@ -66,14 +60,14 @@ func (p *Pool) Match(msg *sipmsg.Message) (Transaction, bool) {
 	return txn.Match(msg)
 }
 
-func (p *Pool) push(txn Transaction) {
+func (p *Pool) push(txn sip.Transaction) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.m[txn.BranchID()] = txn
 }
 
-func (p *Pool) del(txn Transaction) {
+func (p *Pool) del(id string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	delete(p.m, txn.BranchID())
+	delete(p.m, id)
 }

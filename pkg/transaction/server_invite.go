@@ -4,7 +4,6 @@ import (
 	"gosip/pkg/logger"
 	"gosip/pkg/sip"
 	"gosip/pkg/sipmsg"
-	"gosip/pkg/transaction/internal/pool"
 )
 
 type ServerInvite struct {
@@ -18,7 +17,7 @@ func initServerInvite(pack *sip.Packet, sndTransp chan *sip.Packet, sndTU chan *
 
 func (txn *ServerInvite) Init()               {}
 func (txn *ServerInvite) Consume(*sip.Packet) {}
-func (txn *ServerInvite) Match(msg *sipmsg.Message) (pool.Transaction, bool) {
+func (txn *ServerInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	if txn.MatchServer(msg) {
 		return txn, true
 	}
