@@ -53,8 +53,14 @@ func (txn *Transaction) IsReliable() bool {
 	}
 }
 
-func (txn *Transaction) MatchClient(msg *sipmsg.Message) bool {
-	// TODO: implement match client rfc3261#17.1.3
+// MatchClient tries to match a response to a transaction
+// implements rfc3261#17.1.3 Matching Responses to Client Transactions
+func (txn *Transaction) MatchClient(resp *sipmsg.Message) bool {
+	// method parameter in the CSeq header field matches the
+	// method of the request that created the transaction
+	if txn.req.Message != nil && txn.req.Message.Method == resp.Method {
+		return true
+	}
 	return false
 }
 
@@ -78,15 +84,11 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 
 	// 1. the branch parameter in the request is equal to the one in the
 	// top Via header field of the request that created the transaction, and
-	if reqvia.Branch != incomevia.Branch {
-		logger.Log("incoming message top Via branch %q not matching transaction branch %q",
-			incomevia.Branch, reqvia.Branch)
-		return false
-	}
+	// - this is already match in transaction store
 
 	// 2. the sent-by value in the top Via of the request is equal to the
 	// one in the request that created the transaction, and
-	if len(reqvia.Host) == 0 || (reqvia.Host != incomevia.Host && reqvia.Port != incomevia.Port) {
+	if len(reqvia.Host) == 0 || reqvia.Host != incomevia.Host || reqvia.Port != incomevia.Port {
 		logger.Wrn("request top via branch host %q port %q does not match incoming host %q port %q",
 			reqvia.Host, reqvia.Port, incomevia.Host, incomevia.Port)
 		return false

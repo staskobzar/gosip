@@ -246,6 +246,7 @@ func (msg *Message) FirstLine() string {
 	return buf.String()
 }
 
+// Len length of SIP message in bytes
 func (msg *Message) Len() int {
 	crln := 2
 	l := msg.firstLineLen()
@@ -255,6 +256,13 @@ func (msg *Message) Len() int {
 		l += hdr.Len() + crln
 	}
 	return l + crln + len(msg.Body)
+}
+
+// DelHeader remove from message all headers with name
+func (msg *Message) DelHeader(name string) {
+	msg.Headers = slices.DeleteFunc(msg.Headers, func(h AnyHeader) bool {
+		return h.Name() == name
+	})
 }
 
 // String return Message as string

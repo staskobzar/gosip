@@ -175,6 +175,66 @@ func TestMessageAppendInsert(t *testing.T) {
 	})
 }
 
+func TestMessageDelHeader(t *testing.T) {
+	createMsg := func() *Message {
+		//nolint:goconst
+		input := "INVITE sip:bob@biloxi.com SIP/2.0\r\n" +
+			"Via: SIP/2.0/UDP pc33.atlanta.com;branch=z9hG4bK776asdhds.1\r\n" +
+			"Max-Forwards: 70\r\n" +
+			"To: Bob <sip:bob@biloxi.com>\r\n" +
+			"From: Alice <sip:alice@atlanta.com>;tag=1928301774\r\n" +
+			"Via: SIP/2.0/UDP pc31.atlanta.com;branch=z9hG4bK776asdhds.3\r\n" +
+			"Call-ID: a84b4c76e66710@pc33.atlanta.com\r\n" +
+			"CSeq: 314159 INVITE\r\n" +
+			"Allow: INVITE, ACK, OPTIONS, CANCEL, BYE\r\n" +
+			"X-Foo: v1\r\n" +
+			"X-Foo: v2\r\n" +
+			"X-Foo: v3\r\n" +
+			"Contact: <sip:alice@pc33.atlanta.com>\r\n\r\n"
+
+		msg, err := Parse(input)
+		if err != nil {
+			panic(err)
+		}
+		return msg
+	}
+
+	t.Run("deletes single header", func(t *testing.T) {
+		msg := createMsg()
+		assert.Equal(t, 12, msg.Headers.Len())
+		assert.Equal(t, 1, msg.FindByNameAll("Contact").Len())
+		msg.DelHeader("Contact")
+		assert.Equal(t, 0, msg.FindByNameAll("Contact").Len())
+		assert.Equal(t, 11, msg.Headers.Len())
+	})
+
+	t.Run("deletes multiple headers", func(t *testing.T) {
+		msg := createMsg()
+		assert.Equal(t, 12, msg.Headers.Len())
+		assert.Equal(t, 3, msg.FindByNameAll("X-Foo").Len())
+		msg.DelHeader("X-Foo")
+		assert.Equal(t, 0, msg.FindByNameAll("X-Foo").Len())
+		assert.Equal(t, 9, msg.Headers.Len())
+	})
+
+	t.Run("deletes multiple headers", func(t *testing.T) {
+		msg := createMsg()
+		assert.Equal(t, 12, msg.Headers.Len())
+		assert.Equal(t, 3, msg.FindByNameAll("X-Foo").Len())
+		msg.DelHeader("X-Foo")
+		assert.Equal(t, 0, msg.FindByNameAll("X-Foo").Len())
+		assert.Equal(t, 9, msg.Headers.Len())
+	})
+
+	t.Run("ignore when header does not exists", func(t *testing.T) {
+		msg := createMsg()
+		assert.Equal(t, 12, msg.Headers.Len())
+		assert.Equal(t, 0, msg.FindByNameAll("X-bar").Len())
+		msg.DelHeader("X-bar")
+		assert.Equal(t, 12, msg.Headers.Len())
+	})
+}
+
 func TestMessageRequestString(t *testing.T) {
 	//nolint:goconst
 	input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
