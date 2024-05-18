@@ -27,9 +27,17 @@ func (s *Store[T]) Put(key string, val T) {
 func (s *Store[T]) Get(key string) (T, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	val, ok := s.pool[key]
-	logger.Log("store get %q found %v", key, ok)
-	return val, ok
+	var val T
+	if len(key) > 0 {
+		val, ok := s.pool[key]
+		logger.Log("store get %q found %v", key, ok)
+		return val, ok
+	}
+	// lookup first available ip
+	for _, val := range s.pool {
+		return val, true
+	}
+	return val, false
 }
 
 func (s *Store[T]) Del(key string) {

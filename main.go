@@ -23,7 +23,8 @@ func main() {
 	}
 
 	mgr.WithResolver(resolv)
-	mgr.ListenUDP(context.Background(), "192.168.1.102:5060")
+	// mgr.ListenUDP(context.Background(), "192.168.1.102:5060")
+	mgr.ListenUDP(context.Background(), "10.54.197.36:5060")
 
 	decoder := sipmsg.NewDecoder()
 	txn := transaction.Init()
@@ -31,6 +32,14 @@ func main() {
 	TURecv := func(pack *sip.Packet) {
 		if pack.Message == nil {
 			logger.Err("TU received invalid packet with nil SIP message")
+			return
+		}
+		// if pack.Message.IsRequest() && pack.Message.RURI.Userinfo == "alice"
+		// if pack.Message.Method == "OPTIONS" {
+		// 	logger.Wrn("skip OPTIONS for now")
+		// 	return
+		// }
+		if pack.Message.IsResponse() {
 			return
 		}
 		r100 := pack.Message.Response(200, "OK")
@@ -42,6 +51,12 @@ func main() {
 			Message:    r100,
 		})
 	}
+
+	// send notify as client
+	txn.RecvTU(&sip.Packet{
+		// 8.1.1.7 When the UAC creates a request, it MUST insert a Via
+		Message: notifyReq(),
+	})
 
 	for {
 		select {
@@ -70,4 +85,28 @@ func main() {
 			fmt.Printf("==> ERR TXN: %s\n", err)
 		}
 	}
+}
+
+func notifyReq() *sipmsg.Message {
+	domain := "alice@clusterpbx.xyz;transport=UDP"
+	input := "OPTIONS sip:" + domain + " SIP/2.0\r\n" +
+		"Via: SIP/2.0/UDP 199.182.135.220:5060;branch=z9hG4bK66746c85;rport\r\n" +
+		"Max-Forwards: 70\r\n" +
+		"From: <sip:" + domain + ">;tag=as01e75d0c\r\n" +
+		"To: <sip:" + domain + ">\r\n" +
+		"Contact: <sip:asterisk@192.168.1.102>\r\n" +
+		"Call-ID: 0190718f4d2fcfd514f931d359586c24@192.168.1.102\r\n" +
+		"CSeq: 102 OPTIONS\r\n" +
+		"User-Agent: ClearlyIP PBX\r\n" +
+		"Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY, INFO, PUBLISH, MESSAGE\r\n" +
+		"Supported: replaces, timer\r\n" +
+		"Content-Length: 0\r\n\r\n"
+
+	msg, _ := sipmsg.Parse(input)
+	via := msg.TopVia()
+	via.Transp = ""
+	via.Host = ""
+	via.Port = ""
+
+	return msg
 }

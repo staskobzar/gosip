@@ -101,6 +101,12 @@ func (l *Layer) RecvTransp(pack *sip.Packet) {
 		logger.Err("empty Message received on %q from %q", pack.LocalSock, pack.RemoteSock)
 		return
 	}
+
+	if txn, ok := l.pool.Match(pack.Message); ok {
+		txn.Consume(pack)
+		return
+	}
+
 	if pack.Message.IsRequest() {
 		logger.Log("txn:layer: received request from %q", pack.RemoteSock)
 		l.serverTxn(pack)
@@ -113,11 +119,6 @@ func (l *Layer) RecvTransp(pack *sip.Packet) {
 // process incoming SIP packet from network
 func (l *Layer) serverTxn(pack *sip.Packet) {
 	logger.Log("txn:layer: start server transaction processing")
-	if txn, ok := l.pool.Match(pack.Message); ok {
-		txn.Consume(pack)
-		return
-	}
-
 	logger.Log("txn:layer: create and store new server transaction with branch %q",
 		pack.Message.TopViaBranch())
 

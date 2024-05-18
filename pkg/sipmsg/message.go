@@ -2,12 +2,15 @@ package sipmsg
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"slices"
 	"strconv"
 	"strings"
 )
 
 var (
+	Error   = errors.New("SIP Message")
 	ErrCopy = errors.New("sipmsg header copy")
 )
 
@@ -75,6 +78,29 @@ func (msg *Message) IsFinalResponse() bool {
 		}
 	}
 	return false
+}
+
+func (msg *Message) SetViaTransp(transp string, laddr net.Addr) error {
+	via := msg.TopVia()
+	if via == nil {
+		return fmt.Errorf("%w: no top Via header found", Error)
+	}
+
+	if laddr == nil {
+		return fmt.Errorf("%w: invalid local address to set in top Via", Error)
+	}
+
+	host, port, err := net.SplitHostPort(laddr.String())
+	if err != nil {
+		return fmt.Errorf("%w: failed to get host and port for top Via: %s",
+			Error, err)
+	}
+
+	via.Transp = transp
+	via.Host = host
+	via.Port = port
+
+	return nil
 }
 
 // TopViaBranch returns top Via header branch parameter

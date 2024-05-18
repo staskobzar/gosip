@@ -13,21 +13,29 @@ import (
 func (mgr *Manager) ResolveRURI(pack sipmsg.Packet) {
 	go func(pack sipmsg.Packet) {
 		if pack.Message == nil {
-			mgr.err <- fmt.Errorf("%w: cannot resolve RURI: packet message is nil", ErrResolv)
+			perr("cannot resolve RURI: packet message is nil")
 			return
 		}
-		addrs, err := mgr.Resolve(pack.Message.RURI)
-		if err != nil {
-			mgr.err <- err
-			return
-		}
-		mgr.serReceived(pack.Message)
 		sippack := sip.Packet{
-			ReqAddrs:   addrs,
 			LocalSock:  pack.Laddr,
 			RemoteSock: pack.Raddr,
 			Message:    pack.Message,
 		}
+
+		if pack.Message.IsResponse() {
+			mgr.resolv <- sippack
+			dbgr("do not resolve response")
+			return
+		}
+
+		addrs, err := mgr.Resolve(pack.Message.RURI)
+		if err != nil {
+			mgr.passErr(err, &sippack)
+			return
+		}
+
+		sippack.ReqAddrs = addrs
+		mgr.serReceived(pack.Message)
 		mgr.resolv <- sippack
 	}(pack)
 }

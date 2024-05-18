@@ -19,10 +19,16 @@ var (
 	ErrResolv = fmt.Errorf("%w: dns resovl", Error)
 )
 
-const reconnTout = time.Second * 3
+type ErrChan struct {
+	Err  error
+	Pack *sip.Packet
+}
 
 type tTransp uint8
 
+const reconnTout = time.Second * 3
+
+// transport types
 const (
 	tUnknown tTransp = 0
 	// https://github.com/ishidawataru/sctp
@@ -52,7 +58,7 @@ type Manager struct {
 	conn    *Store[Conn]
 	rcv     chan Packet
 	resolv  chan sip.Packet
-	err     chan error
+	err     chan ErrChan
 	support tTransp
 	dns     sip.DNS
 }
@@ -97,7 +103,7 @@ func Init() *Manager {
 		conn:   NewStore[Conn](),
 		rcv:    make(chan Packet),     // 32),
 		resolv: make(chan sip.Packet), // 32),
-		err:    make(chan error),      // 32),
+		err:    make(chan ErrChan),    // 32),
 	}
 }
 
@@ -134,25 +140,55 @@ func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
 	return nil
 }
 
-func (mgr *Manager) Send(pack *sip.Packet) error {
+// Send sip Packet to network
+func (mgr *Manager) Send(pack *sip.Packet) {
 	if pack.Message == nil {
-		return fmt.Errorf("%w: invalid SIP Message <nil> when trying to send packet")
+		perr("invalid SIP Message <nil> when trying to send packet")
+		return
 	}
-	logger.Log("sending pack %q with local socket %q and remote socket %q",
-		pack.Message.FirstLine(), pack.LocalSock, pack.RemoteSock)
-	// TODO: assure pack.SendTo exists
-	for _, dst := range pack.SendTo {
-		logger.Log("send to destination addr %q", dst)
-		switch dst.Network() {
-		case "udp":
-			return mgr.SendUDP(pack.LocalSock, dst, pack.Message)
-		case "tcp":
-			return mgr.SendTCP(pack.LocalSock, dst, pack.Message)
-		default:
-			return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, dst.Network())
+
+	dbg("sending pack with SIP message %q", pack.Message.FirstLine())
+	go mgr.send(pack)
+}
+
+func (mgr *Manager) send(pack *sip.Packet) {
+	if len(pack.SendTo) == 0 {
+		dbg("no send-to addresses in the packet")
+		addrs, err := mgr.Resolve(pack.Message.RURI)
+		if err != nil {
+			perr("failed to resolve: %s", err)
+			return
 		}
+		pack.SendTo = addrs
 	}
-	return fmt.Errorf("%w: failed to send message %q", ErrSend, pack.Message.FirstLine())
+
+	send := func() error {
+		for _, dst := range pack.SendTo {
+			logger.Log("send to destination addr %q", dst)
+			switch dst.Network() {
+			case "udp":
+				return mgr.SendUDP(pack.LocalSock, dst, pack.Message)
+			case "tcp":
+				return mgr.SendTCP(pack.LocalSock, dst, pack.Message)
+			default:
+				return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, dst.Network())
+			}
+		}
+		return fmt.Errorf("%w: failed to send message %q", ErrSend, pack.Message.FirstLine())
+	}
+
+	if err := send(); err != nil {
+		mgr.passErr(err, pack)
+	}
+}
+
+func (mgr *Manager) passErr(err error, pack *sip.Packet) {
+	dbg("sending transport error: %s", err)
+	select {
+	case <-time.After(time.Second):
+		perr("timeout to send error: error channel is blocked")
+	case mgr.err <- ErrChan{Err: err, Pack: pack}:
+	}
 }
 
 func (mgr *Manager) SendUDP(src, dst net.Addr, msg *sipmsg.Message) error {
@@ -167,6 +203,12 @@ func (mgr *Manager) SendUDP(src, dst net.Addr, msg *sipmsg.Message) error {
 		return fmt.Errorf("%w: found %q socket but type is not UDPConn",
 			ErrSend, name)
 	}
+	src = udp.laddr // in case if src is a first ln address
+
+	if err := msg.SetViaTransp("UDP", udp.laddr); err != nil {
+		return err
+	}
+	dbg("set top Via transport to UDP and sent-by to %q", udp.laddr)
 
 	n, err := udp.conn.WriteTo(msg.Byte(), dst)
 	if err != nil {
@@ -198,7 +240,7 @@ func (mgr *Manager) SendTCP(src, dst net.Addr, msg *sipmsg.Message) error {
 	return nil
 }
 
-func (mgr *Manager) Err() <-chan error {
+func (mgr *Manager) Err() <-chan ErrChan {
 	return mgr.err
 }
 
@@ -263,10 +305,16 @@ func rcvPacket(rcv chan<- Packet, buf []byte, laddr, raddr net.Addr) {
 }
 
 func sockName(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
 	return addr.Network() + ":" + addr.String()
 }
 
 func connName(laddr, raddr net.Addr) string {
+	if laddr == nil || raddr == nil {
+		return ""
+	}
 	lsock := sockName(laddr)
 	rsock := sockName(raddr)
 

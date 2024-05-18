@@ -108,6 +108,7 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 // stop all running background timers and actions
 // remove transaction from the store
 func (txn *Transaction) terminate() {
+	logger.Log("txn: terminate")
 	select {
 	case <-txn.halt:
 		// channel is already closed

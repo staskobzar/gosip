@@ -197,7 +197,7 @@ func TestParseHeaderNameAddr(t *testing.T) {
 	}
 }
 
-func BenchmarkParse(b *testing.B) {
+func BenchmarkParseRequest(b *testing.B) {
 	input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
 		"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n" +
 		"Via: SIP / 2.0 / UDP first.example.com: 4000;ttl=16 ;maddr=224.2.0.1 ;branch=z9hG4bKa7c6a8dlze.1\r\n" +

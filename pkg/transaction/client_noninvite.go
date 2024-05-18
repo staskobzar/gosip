@@ -71,12 +71,15 @@ func (txn *ClientNonInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 }
 
 func (txn *ClientNonInvite) completed() {
+	logger.Log("txn:client:noninv: enter completed state")
 	txn.state.Set(state.Completed)
 	if txn.IsReliable() {
+		logger.Log("txn:client:noninv: terminate for reliable transport")
 		txn.terminate()
 		return
 	}
 	// unreliable transport
+	logger.Log("txn:client:noninv: fire timer K")
 	go func() {
 		select {
 		case <-txn.timer.FireK():
@@ -88,6 +91,7 @@ func (txn *ClientNonInvite) completed() {
 }
 
 func (txn *ClientNonInvite) timerF() {
+	logger.Log("txn:client:noninv: fire timer F")
 	select {
 	case <-txn.timer.FireF():
 	case <-txn.halt:
@@ -101,15 +105,21 @@ func (txn *ClientNonInvite) timerF() {
 }
 
 func (txn *ClientNonInvite) timerE() {
+	logger.Log("txn:client:noninv: fire timer E")
 	tick := txn.timer.TickerE()
 	timer := time.NewTimer(0)
-	for txn.state.IsTrying() || txn.state.IsProceeding() {
+	for {
 		next := tick(txn.state.IsProceeding())
 		timer.Reset(next)
 		select {
 		case <-timer.C:
-			logger.Log("txn:client:noninv timer E resend after %v", next)
-			txn.layer.passToTransp(txn.req)
+			if txn.state.IsTrying() || txn.state.IsProceeding() {
+				logger.Log("txn:client:noninv timer E fired after %v. resend initial request", next)
+				txn.layer.passToTransp(txn.req)
+				continue
+			}
+			logger.Log("txn:client:noninv state is %q. stop timer E", txn.state)
+			return
 		case <-txn.halt:
 			logger.Log("txn:client:noninv timer E is halted")
 			return
