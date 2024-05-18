@@ -34,11 +34,6 @@ func main() {
 			logger.Err("TU received invalid packet with nil SIP message")
 			return
 		}
-		// if pack.Message.IsRequest() && pack.Message.RURI.Userinfo == "alice"
-		// if pack.Message.Method == "OPTIONS" {
-		// 	logger.Wrn("skip OPTIONS for now")
-		// 	return
-		// }
 		if pack.Message.IsResponse() {
 			return
 		}

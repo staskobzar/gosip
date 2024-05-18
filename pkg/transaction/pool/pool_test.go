@@ -14,7 +14,7 @@ type mockTxn struct {
 }
 
 func (*mockTxn) Consume(*sip.Packet) {}
-func (t *mockTxn) Match(*sipmsg.Message) (Transaction, bool) {
+func (t *mockTxn) Match(*sipmsg.Message) (sip.Transaction, bool) {
 	if t.match {
 		return t, true
 	}

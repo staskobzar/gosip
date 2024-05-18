@@ -27,7 +27,7 @@ func TestOutput(t *testing.T) {
 
 	Enable(true)
 	Log("debug test %d", 123)
-	assert.Regexp(t, "^[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6} debug test 123\n$", buf.String())
+	assert.Regexp(t, "^[0-9]{2}:[0-9]{2}:[0-9]{2}.[0-9]{6} INF debug test 123\n$", buf.String())
 
 	buf.Reset()
 	Wrn("warn test %v", true)

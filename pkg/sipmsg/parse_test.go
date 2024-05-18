@@ -13,7 +13,7 @@ func toMsg(hdrs []string) string {
 }
 
 func TestParseRequestToMessage(t *testing.T) {
-	input := "REGISTER sip:registrar.biloxi.com SIP/2.0\r\n" +
+	input := "REGISTER sip:registrar.biloxi.com;transport=UDP SIP/2.0\r\n" +
 		"Via: SIP/2.0/UDP bobspc.biloxi.com:5060;branch=z9hG4bKnashds7\r\n" +
 		"Max-Forwards: 70\r\n" +
 		"To: \"Hello World\" <sip:bob@biloxi.com>\r\n" +
@@ -28,7 +28,8 @@ func TestParseRequestToMessage(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "REGISTER", msg.Method)
 	assert.Equal(t, HRequest, msg.t)
-	assert.Equal(t, "sip:registrar.biloxi.com", msg.RURI.String())
+	assert.Equal(t, "sip:registrar.biloxi.com;transport=UDP", msg.RURI.String())
+	assert.Equal(t, "UDP", msg.RURI.Transport)
 	assert.Empty(t, msg.Code)
 	assert.Empty(t, msg.Reason)
 	assert.Equal(t, "843817637684230@998sdasdh09", msg.CallID)
