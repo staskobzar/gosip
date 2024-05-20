@@ -84,5 +84,12 @@ func TestTransactionMatch(t *testing.T) {
 			resp.Method = "ACK"
 			assert.False(t, txn.MatchServer(resp))
 		})
+
+		t.Run("false when branch id is invalid", func(t *testing.T) {
+			txn, resp := setup()
+			via := resp.TopVia()
+			via.Branch = "foo-bar"
+			assert.False(t, txn.MatchServer(resp))
+		})
 	})
 }

@@ -6,6 +6,7 @@ import (
 	"gosip/pkg/sipmsg"
 	"gosip/pkg/transaction/state"
 	"gosip/pkg/transaction/timer"
+	"strings"
 )
 
 type Transaction struct {
@@ -79,8 +80,15 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 			msg.Method, msg.RURI)
 		return false
 	}
-	// TODO: it should have a check if branch starts with "z9hG4bK"
-	// and if not handle backwards compatibility with RFC 2543
+
+	// branch id must start with "z9hG4bK"
+	topViaBranch := msg.TopViaBranch()
+	if !strings.HasPrefix(msg.TopViaBranch(), "z9hG4bK") {
+		logger.Err("invalid top Via branch %q", topViaBranch)
+		// no handle backwards compatibility with RFC 2543
+		logger.Wrn("This library does not provide backwards compatibility with RFC 2543")
+		return false
+	}
 
 	// 1. the branch parameter in the request is equal to the one in the
 	// top Via header field of the request that created the transaction, and
