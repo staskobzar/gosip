@@ -7,6 +7,7 @@ import (
 	"gosip/pkg/sip"
 	"gosip/pkg/transaction/pool"
 	"gosip/pkg/transaction/timer"
+	"time"
 )
 
 var (
@@ -47,20 +48,26 @@ func (l *Layer) passToTU(pack *sip.Packet) {
 	select {
 	case l.sndTU <- pack:
 		logger.Log("txn:layer: pass packet to TU")
-	default:
+	case <-time.After(500 * time.Millisecond):
 		logger.Err("txn:layer: failed to send to TU")
 	}
 }
 
 func (l *Layer) passToTransp(pack *sip.Packet) {
-	// TODO: control blocking
 	logger.Log("txn:layer: to transport message %q", pack.Message.FirstLine())
-	l.sndTransp <- pack
+	select {
+	case l.sndTransp <- pack:
+	case <-time.After(500 * time.Millisecond):
+		logger.Err("txn:layer: failed to send message to transport. Channel blocked")
+	}
 }
 
 func (l *Layer) passErr(err error) {
-	// TODO: control blocking
-	l.err <- err
+	select {
+	case l.err <- err:
+	case <-time.After(500 * time.Millisecond):
+		logger.Err("txn:layer: failed to send error. Channel blocked")
+	}
 }
 
 func (l *Layer) RecvTU(pack *sip.Packet) {
