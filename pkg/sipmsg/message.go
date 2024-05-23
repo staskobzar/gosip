@@ -143,7 +143,6 @@ func (msg *Message) ACK(resp *Message) *Message {
 		// this MUST be equal to the top Via header field of the original
 		// request.
 
-		// TODO: test top only Via copy WITHOUT linked headers
 		if via, ok := topVia.(*HeaderVia); ok {
 			viacopy := via.copy()
 			viacopy.Next = nil // remove linked Via if exist

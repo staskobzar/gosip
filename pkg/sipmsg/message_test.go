@@ -256,7 +256,7 @@ func TestMessageRequestString(t *testing.T) {
 func TestMessageRequestNone200Ack(t *testing.T) {
 	//nolint:goconst
 	inputReq := "INVITE sip:bob@biloxi.example.com SIP/2.0\r\n" +
-		"Via: SIP/2.0/TCP client.atlanta.example.com:5060;branch=z9hG4bK74b43\r\n" +
+		"Via: SIP/2.0/TCP client.atlanta.example.com:5060;branch=z9hG4bK74b43,SIP/2.0/TCP 10.1.1.200;branch=z9Hff0\r\n" +
 		"Max-Forwards: 70\r\n" +
 		"Route: <sip:ss1.atlanta.example.com;lr>\r\n" +
 		"Route: <sip:ss2.atlanta.example.com;lr>\r\n" +
@@ -303,7 +303,8 @@ func TestMessageRequestNone200Ack(t *testing.T) {
 	assert.Equal(t, "3848276298220188511@atlanta.example.com", ack.CallID)
 	assert.Equal(t, req.From.String(), ack.From.String())
 	assert.Equal(t, resp.To.String(), ack.To.String())
-	assert.Equal(t, req.Find(HVia).String(), ack.Find(HVia).String())
+	assert.Equal(t, "Via: SIP/2.0/TCP client.atlanta.example.com:5060;branch=z9hG4bK74b43",
+		ack.Find(HVia).String())
 	assert.Equal(t, req.CSeq, ack.CSeq)
 	assert.Equal(t, 2, ack.FindAll(HRoute).Len())
 	assert.Equal(t, req.Find(HRoute).String(), ack.Find(HRoute).String())
