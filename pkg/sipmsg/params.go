@@ -123,18 +123,23 @@ func (p Params) setup() Params {
 	return p[idx:]
 }
 
-// TODO: handle spaces in the beginning
-// ; branch=z9hG4bKna; maddr=10.0.0.1;received=10.0.0.100 ;ttl=120
 func (p Params) split() [][2]int {
 	pt := make([][2]int, 0, 4)
-	start := 0
-	for i, s := range p {
-		if s == ';' {
-			pt = append(pt, [2]int{start, i})
-			start = i + 1
+	s, e := 0, 0
+	for i, c := range p {
+		switch c {
+		case ';':
+			pt = append(pt, [2]int{s, e + 1})
+			s = i + 1
+		case ' ':
+			if s >= e {
+				s = i + 1
+			}
+		default:
+			e = i
 		}
 	}
-	pt = append(pt, [2]int{start, len(p)})
+	pt = append(pt, [2]int{s, e + 1})
 	return pt
 }
 

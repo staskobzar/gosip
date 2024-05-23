@@ -129,6 +129,12 @@ func TestParamsGet(t *testing.T) {
 			"ttl=255;user=ip;lr;maddr=10.0.0.1", "TTL", "255", true},
 		`match param with empty value`: {
 			"ttl=255;user=;lr;maddr=10.0.0.1", "User", "", true},
+		`match param with prefix spaces in the beginning`: {
+			" ttl=255;user=;lr;maddr=10.0.0.1", "ttl", "255", true},
+		`match param with spaces in the middle`: {
+			" ttl=255; user=alice ;lr;maddr=10.0.0.1", "user", "alice", true},
+		`match param with spaces in the end`: {
+			" ttl=255; user=alice ;lr;maddr=10.0.0.1 ", "maddr", "10.0.0.1", true},
 	}
 
 	for name, tt := range tests {
