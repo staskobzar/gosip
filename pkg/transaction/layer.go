@@ -82,7 +82,7 @@ func (l *Layer) RecvTU(pack *sip.Packet) {
 		logger.Log("create and add new client transaction")
 		l.pool.Add(func() sip.Transaction {
 			if pack.Message.IsInvite() {
-				return initClientInvite(pack, l.sndTransp, l.sndTU, l.err)
+				return initClientInvite(pack, l)
 			}
 			return initClientNonInvite(pack, l)
 		}())

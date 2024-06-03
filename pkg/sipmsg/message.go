@@ -70,9 +70,28 @@ func (msg *Message) ResponseCode() int {
 // response code is between 100 and 199
 func (msg *Message) IsProvisional() bool { return msg.codePrefix('1') }
 
+// IsSuccess SIP response 2xx
+func (msg *Message) IsSuccess() bool { return msg.codePrefix('2') }
+
+// IsRedirection SIP response 3xx
+func (msg *Message) IsRedirection() bool { return msg.codePrefix('3') }
+
+// IsClientError SIP response 4xx
+func (msg *Message) IsClientError() bool { return msg.codePrefix('4') }
+
+// IsServerError SIP response 5xx
+func (msg *Message) IsServerError() bool { return msg.codePrefix('5') }
+
+// IsGlobalFailure SIP response 6xx
+func (msg *Message) IsGlobalFailure() bool { return msg.codePrefix('6') }
+
 // IsFinalResponse returns true if response code is any of 2xx, 3xx, 4xx, 5xx or 6xx
 func (msg *Message) IsFinalResponse() bool {
-	for _, c := range []byte("23456") {
+	return msg.IsSuccess() || msg.IsRedirOrError()
+}
+
+func (msg *Message) IsRedirOrError() bool {
+	for _, c := range []byte("3456") {
 		if msg.codePrefix(c) {
 			return true
 		}

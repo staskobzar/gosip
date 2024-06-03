@@ -23,10 +23,36 @@ func mockRegisterMsg() *sipmsg.Message {
 	return msg
 }
 
+func mockInviteMsg() *sipmsg.Message {
+	input := "INVITE sip:bob@biloxi.com SIP/2.0\r\n" +
+		"Via: SIP/2.0/UDP atlanta.com;branch=z9hG4bK776a\r\n" +
+		"Max-Forwards: 70\r\n" +
+		"To: Bob <sip:bob@biloxi.com>\r\n" +
+		"From: Alice <sip:alice@atlanta.com>;tag=1928301774\r\n" +
+		"Call-ID: a84b4c76e66710@atlanta.com\r\n" +
+		"CSeq: 314159 INVITE\r\n" +
+		"Allow: INVITE, ACK, OPTIONS, CANCEL, BYE\r\n" +
+		"Contact: <sip:alice@atlanta.com>\r\n\r\n" +
+		"v=0\r\no=jdoe 3724394400 3724394405 IN IP4 198.51.100.1\r\n" +
+		"s=Call to Bob\r\nc=IN IP4 198.51.100.1\r\nt=0 0\r\n" +
+		"m=audio 49170 RTP/AVP 0\r\nc=IN IP6 2001:db8::2\r\na=sendrecv\r\n"
+	msg, _ := sipmsg.Parse(input)
+
+	return msg
+}
+
 func mockNonInvite() (*Layer, *sip.Packet) {
 	layer := Init()
 	pack := &sip.Packet{
 		Message: mockRegisterMsg(),
+	}
+	return layer, pack
+}
+
+func mockInvite() (*Layer, *sip.Packet) {
+	layer := Init()
+	pack := &sip.Packet{
+		Message: mockInviteMsg(),
 	}
 	return layer, pack
 }

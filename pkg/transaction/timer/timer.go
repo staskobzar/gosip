@@ -1,12 +1,15 @@
 package timer
 
-import "time"
+import (
+	"time"
+)
 
 // Timer contains SIP timers rfc3261
 type Timer struct {
 	T1 time.Duration
 	T2 time.Duration
 	T4 time.Duration
+	B  time.Duration
 	D  time.Duration
 	F  time.Duration
 	J  time.Duration
@@ -21,10 +24,21 @@ func New() *Timer {
 		D:  32 * time.Second,
 	}
 
+	t.B = t.T1 * 64
 	t.J = t.T1 * 64
 	t.F = t.T1 * 64
 
 	return t
+}
+
+// FireB blocks until timer B
+func (t *Timer) FireB() <-chan struct{} {
+	return fire(t.B)
+}
+
+// FireD blocks until timer B
+func (t *Timer) FireD() <-chan struct{} {
+	return fire(t.D)
 }
 
 // FireJ blocks until timer J
@@ -40,6 +54,18 @@ func (t *Timer) FireF() <-chan struct{} {
 // FireK blocks until timer K
 func (t *Timer) FireK() <-chan struct{} {
 	return fire(t.T4)
+}
+
+// TickerA returns the timer A value
+// with T = T1 and for each next call T = 2*T
+func (t *Timer) TickerA() func() time.Duration {
+	dur := t.T1
+
+	return func() time.Duration {
+		t := dur
+		dur *= 2
+		return t
+	}
 }
 
 // TickerE return function that when called returns

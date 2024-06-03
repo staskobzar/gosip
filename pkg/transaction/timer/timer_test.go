@@ -98,3 +98,17 @@ func TestTickerE(t *testing.T) {
 		})
 	}
 }
+
+func TestTickerA(t *testing.T) {
+	tm := New()
+	tick := tm.TickerA()
+
+	assert.Equal(t, 500*time.Millisecond, tm.T1)
+	assert.Equal(t, 500*time.Millisecond, tick())
+	assert.Equal(t, 1*time.Second, tick())
+	assert.Equal(t, 2*time.Second, tick())
+	assert.Equal(t, 4*time.Second, tick())
+	assert.Equal(t, 8*time.Second, tick())
+	assert.Equal(t, 16*time.Second, tick())
+	assert.Equal(t, 32*time.Second, tick())
+}
