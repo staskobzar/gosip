@@ -131,7 +131,7 @@ func (l *Layer) serverTxn(pack *sip.Packet) {
 
 	l.pool.Add(func() sip.Transaction {
 		if pack.Message.IsInvite() {
-			return initServerInvite(pack, l.sndTransp, l.sndTU, l.err)
+			return initServerInvite(pack, l)
 		}
 		return initServerNonInvite(pack, l)
 	}())

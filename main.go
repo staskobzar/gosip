@@ -50,7 +50,8 @@ func main() {
 	// send notify as client
 	txn.RecvTU(&sip.Packet{
 		// 8.1.1.7 When the UAC creates a request, it MUST insert a Via
-		Message: notifyReq(),
+		//Message: notifyReq(),
+		Message: inviteReq(),
 	})
 
 	for {
@@ -103,5 +104,23 @@ func notifyReq() *sipmsg.Message {
 	via.Host = ""
 	via.Port = ""
 
+	return msg
+}
+
+func inviteReq() *sipmsg.Message {
+	domain := "alice@clusterpbx.xyz;transport=UDP"
+	input := "INVITE sip:" + domain + " SIP/2.0\r\n" +
+		"Via: SIP/2.0/UDP 199.182.135.220:5060;branch=z9hG4bK66746c85\r\n" +
+		"Max-Forwards: 70\r\n" +
+		"To: Alice <sip:" + domain + ">\r\n" +
+		"From: Bob <sip:bob@clusterpbx.xyz>;tag=1928301774\r\n" +
+		"Call-ID: a84b4c76e66710@clusterpbx.xyz\r\n" +
+		"CSeq: 314159 INVITE\r\n" +
+		"Allow: INVITE, ACK, OPTIONS, CANCEL, BYE\r\n" +
+		"Contact: <sip:bob@clusterpbx.xyz>\r\n\r\n" +
+		"v=0\r\no=jdoe 3724394400 3724394405 IN IP4 198.51.100.1\r\n" +
+		"s=Call to Bob\r\nc=IN IP4 198.51.100.1\r\nt=0 0\r\n" +
+		"m=audio 49170 RTP/AVP 0\r\nc=IN IP6 2001:db8::2\r\na=sendrecv\r\n"
+	msg, _ := sipmsg.Parse(input)
 	return msg
 }
