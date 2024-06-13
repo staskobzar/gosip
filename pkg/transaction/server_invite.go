@@ -37,24 +37,21 @@ func (txn *ServerInvite) Consume(pack *sip.Packet) {
 	msg := pack.Message
 
 	if msg.IsRequest() {
-		if txn.response != nil {
-			txn.layer.passToTransp(txn.response)
-		} else {
-			txn.mu.Lock()
-			defer txn.mu.Unlock()
-			txn.response = txn.gen100()
-			txn.layer.passToTransp(txn.response)
-		}
+		txn.consumeRequest(msg)
 		return
 	}
 
+	// responses are expected only in the Proceeding state
 	if txn.state.IsProceeding() {
-		if msg.IsProvisional() {
-			txn.mu.Lock()
-			txn.response = pack
-			txn.mu.Unlock()
-			txn.layer.passToTransp(pack)
-			return
+		txn.setResponse(pack)
+		txn.layer.passToTransp(pack)
+		switch {
+		case msg.IsSuccess():
+			txn.terminate()
+		case msg.IsRedirOrError():
+			txn.state.Set(state.Completed)
+			go txn.fireH()
+			go txn.fireG()
 		}
 	}
 }
@@ -64,6 +61,36 @@ func (txn *ServerInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 		return txn, true
 	}
 	return nil, false
+}
+
+func (txn *ServerInvite) fireH() {
+	select {
+	case <-txn.timer.FireH():
+		if txn.state.IsCompleted() {
+			logger.Wrn("txn:server:inv: timer H fired in completed state. terminating txn")
+			txn.layer.passErr(ErrTxnFail)
+			txn.terminate()
+		}
+	case <-txn.halt:
+		logger.Wrn("txn:server:inv: timer H interupted by halt event")
+	}
+}
+
+func (txn *ServerInvite) fireG() {
+	tick := txn.timer.TickerG()
+	timer := time.NewTimer(tick())
+	for {
+		select {
+		case <-timer.C:
+			if !txn.state.IsCompleted() {
+				return
+			}
+			txn.layer.passToTransp(txn.response)
+			timer.Reset(tick())
+		case <-txn.halt:
+			return
+		}
+	}
 }
 
 func (txn *ServerInvite) fireEarly() {
@@ -80,6 +107,52 @@ func (txn *ServerInvite) fireEarly() {
 	}
 
 	txn.layer.passToTransp(txn.gen100())
+}
+
+func (txn *ServerInvite) fireI() {
+	if txn.IsReliable() {
+		txn.terminate()
+		return
+	}
+
+	select {
+	case <-txn.halt:
+	case <-txn.timer.FireI():
+		txn.terminate()
+	}
+}
+
+func (txn *ServerInvite) consumeRequest(msg *sipmsg.Message) {
+	if msg.IsInvite() {
+		if !(txn.state.IsProceeding() || txn.state.IsCompleted()) {
+			logger.Wrn("txn:server:inv: ignore INVITE retransmission for state %q", txn.state)
+			return
+		}
+
+		if txn.response == nil {
+			txn.setResponse(txn.gen100())
+		}
+		txn.layer.passToTransp(txn.response)
+		return
+	}
+
+	if msg.IsMethod("ACK") {
+		switch {
+		case txn.state.IsCompleted():
+			txn.state.Set(state.Confirmed)
+			go txn.fireI()
+		case txn.state.IsConfirmed():
+			logger.Log("txn:server:inv: absorb ACK in Confirmed state")
+		}
+		return
+	}
+	logger.Wrn("txn:server:inv: unacceptable request %q", msg.FirstLine())
+}
+
+func (txn *ServerInvite) setResponse(respPack *sip.Packet) {
+	txn.mu.Lock()
+	defer txn.mu.Unlock()
+	txn.response = respPack
 }
 
 func (txn *ServerInvite) gen100() *sip.Packet {

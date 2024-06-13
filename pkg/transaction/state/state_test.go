@@ -31,3 +31,25 @@ func TestString(t *testing.T) {
 		assert.Equal(t, tc.want, st.String())
 	}
 }
+
+func TestCurrentState(t *testing.T) {
+	s := New()
+	tests := []struct {
+		fn  func() bool
+		typ Type
+	}{
+		{s.IsCalling, Calling},
+		{s.IsCompleted, Completed},
+		{s.IsConfirmed, Confirmed},
+		{s.IsProceeding, Proceeding},
+		{s.IsTrying, Trying},
+		{s.IsTerminated, Terminated},
+	}
+
+	for _, tc := range tests {
+		s.Set(Unknown)
+		assert.False(t, tc.fn())
+		s.Set(tc.typ)
+		assert.True(t, tc.fn())
+	}
+}

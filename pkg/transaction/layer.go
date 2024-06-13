@@ -13,6 +13,7 @@ import (
 var (
 	Error      = errors.New("transaction")
 	ErrTimeout = fmt.Errorf("%w: timeout", Error)
+	ErrTxnFail = fmt.Errorf("%w: transaction failure: no ACK received", Error)
 )
 
 type Layer struct {

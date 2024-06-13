@@ -12,6 +12,7 @@ type Timer struct {
 	B  time.Duration
 	D  time.Duration
 	F  time.Duration
+	H  time.Duration
 	J  time.Duration
 }
 
@@ -25,8 +26,9 @@ func New() *Timer {
 	}
 
 	t.B = t.T1 * 64
-	t.J = t.T1 * 64
 	t.F = t.T1 * 64
+	t.H = t.T1 * 64
+	t.J = t.T1 * 64
 
 	return t
 }
@@ -41,9 +43,19 @@ func (t *Timer) FireD() <-chan struct{} {
 	return fire(t.D)
 }
 
+// FireH blocks until timer H
+func (t *Timer) FireH() <-chan struct{} {
+	return fire(t.H)
+}
+
 // FireJ blocks until timer J
 func (t *Timer) FireJ() <-chan struct{} {
 	return fire(t.J)
+}
+
+// FireI blocks until timer I which is equal to T4
+func (t *Timer) FireI() <-chan struct{} {
+	return fire(t.T4)
 }
 
 // FireF blocks until timer F
@@ -76,11 +88,23 @@ func (t *Timer) TickerE() func(bool) time.Duration {
 		if isProcessing {
 			return t2
 		}
-		t := min(t1, t2)
+		dur := min(t1, t2)
 		if t1 < t2 {
 			t1 *= 2
 		}
-		return t
+		return dur
+	}
+}
+
+// TickerG for invite resonse retransmit interval
+func (t *Timer) TickerG() func() time.Duration {
+	t1, t2 := t.T1, t.T2
+	return func() time.Duration {
+		dur := min(t1, t2)
+		if t1 < t2 {
+			t1 *= 2
+		}
+		return dur
 	}
 }
 
