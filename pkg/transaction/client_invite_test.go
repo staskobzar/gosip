@@ -138,7 +138,7 @@ func TestClientInviteConsume(t *testing.T) {
 			txn.Consume(resp)
 			assert.True(t, txn.state.IsTerminated())
 			assert.Same(t, resp, <-txn.layer.SendTU())
-			assert.Len(t, txn.layer.sndTransp, 1, "")
+			assert.Len(t, txn.layer.sndTransp, 1)
 		})
 
 		t.Run("recv 3xx-699 transitions to Completed", func(t *testing.T) {

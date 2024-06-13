@@ -40,45 +40,22 @@ func (txn *ClientInvite) Consume(pack *sip.Packet) {
 	resp := pack.Message
 	logger.Log("txn:client:inv: consume message %q while state is %q", resp.FirstLine(), txn.state)
 
-	if txn.state.IsCalling() {
-		if resp.IsProvisional() {
+	if txn.state.IsCalling() || txn.state.IsProceeding() {
+		switch {
+		case resp.IsProvisional():
 			txn.state.Set(state.Proceeding)
 			txn.layer.passToTU(pack)
-			return
-		}
-
-		if resp.IsSuccess() {
+		case resp.IsSuccess():
 			txn.layer.passToTU(pack)
 			txn.terminate()
-			return
-		}
-
-		if resp.IsRedirOrError() { // 300-699
+		case resp.IsRedirOrError(): // 300-699
 			txn.layer.passToTU(pack)
 			txn.sendACK(pack)
 			txn.complete()
-			return
+		default:
+			logger.Err("txn:client:inv: invalid response code %q", resp.Code)
 		}
-	}
-
-	if txn.state.IsProceeding() {
-		if resp.IsProvisional() {
-			txn.layer.passToTU(pack)
-			return
-		}
-
-		if resp.IsSuccess() {
-			txn.layer.passToTU(pack)
-			txn.terminate()
-			return
-		}
-
-		if resp.IsRedirOrError() { // 300-699
-			txn.layer.passToTU(pack)
-			txn.sendACK(pack)
-			txn.complete()
-			return
-		}
+		return
 	}
 
 	if txn.state.IsCompleted() {
