@@ -22,7 +22,7 @@ func TestClientNonInviteInit(t *testing.T) {
 
 		assert.Same(t, pack, <-layer.SendTransp())
 
-		assert.NotPanics(t, func() { txn.terminate() })
+		assert.NotPanics(t, func() { txn.Terminate() })
 	})
 
 	t.Run("timer F", func(t *testing.T) {

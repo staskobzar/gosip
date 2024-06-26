@@ -29,4 +29,5 @@ type Transaction interface {
 	BranchID() string
 	Consume(*Packet)
 	Match(msg *sipmsg.Message) (Transaction, bool)
+	Terminate()
 }

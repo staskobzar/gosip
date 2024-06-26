@@ -105,10 +105,10 @@ func TestTransactionMatch(t *testing.T) {
 			assert.False(t, txn.MatchServer(resp))
 		})
 
-		t.Run("false when method is ACK", func(t *testing.T) {
+		t.Run("true when method is ACK", func(t *testing.T) {
 			txn, resp := setup()
 			resp.Method = "ACK"
-			assert.False(t, txn.MatchServer(resp))
+			assert.True(t, txn.MatchServer(resp))
 		})
 
 		t.Run("false when branch id is invalid", func(t *testing.T) {

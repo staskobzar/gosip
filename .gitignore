@@ -24,6 +24,9 @@ coverage.txt
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
+# dlv debug files
+debug.test*
+
 ### Go Patch ###
 /vendor/
 /Godeps/

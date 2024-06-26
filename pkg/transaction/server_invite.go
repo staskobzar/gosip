@@ -28,6 +28,7 @@ func initServerInvite(pack *sip.Packet, layer *Layer) *ServerInvite {
 	return txn
 }
 
+// Consume invite requests and re-transactions and ACK
 func (txn *ServerInvite) Consume(pack *sip.Packet) {
 	if pack.Message == nil {
 		logger.Err("txn:server:inv: consume packet has <nil> SIP Message")
@@ -47,7 +48,7 @@ func (txn *ServerInvite) Consume(pack *sip.Packet) {
 		txn.layer.passToTransp(pack)
 		switch {
 		case msg.IsSuccess():
-			txn.terminate()
+			txn.Terminate()
 		case msg.IsRedirOrError():
 			txn.state.Set(state.Completed)
 			go txn.fireH()
@@ -56,6 +57,7 @@ func (txn *ServerInvite) Consume(pack *sip.Packet) {
 	}
 }
 
+// Match server transaction
 func (txn *ServerInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	if txn.MatchServer(msg) {
 		return txn, true
@@ -69,7 +71,7 @@ func (txn *ServerInvite) fireH() {
 		if txn.state.IsCompleted() {
 			logger.Wrn("txn:server:inv: timer H fired in completed state. terminating txn")
 			txn.layer.passErr(ErrTxnFail)
-			txn.terminate()
+			txn.Terminate()
 		}
 	case <-txn.halt:
 		logger.Wrn("txn:server:inv: timer H interupted by halt event")
@@ -111,14 +113,14 @@ func (txn *ServerInvite) fireEarly() {
 
 func (txn *ServerInvite) fireI() {
 	if txn.IsReliable() {
-		txn.terminate()
+		txn.Terminate()
 		return
 	}
 
 	select {
 	case <-txn.halt:
 	case <-txn.timer.FireI():
-		txn.terminate()
+		txn.Terminate()
 	}
 }
 

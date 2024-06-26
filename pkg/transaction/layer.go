@@ -10,12 +10,14 @@ import (
 	"time"
 )
 
+// transaction layer errors
 var (
 	Error      = errors.New("transaction")
 	ErrTimeout = fmt.Errorf("%w: timeout", Error)
 	ErrTxnFail = fmt.Errorf("%w: transaction failure: no ACK received", Error)
 )
 
+// Layer for SIP transactions
 type Layer struct {
 	SetupTimers func(*timer.Timer) *timer.Timer // callback function to setup transactions timers
 	pool        *pool.Pool
@@ -24,6 +26,7 @@ type Layer struct {
 	err         chan error
 }
 
+// Init creates new layer
 func Init() *Layer {
 	return &Layer{
 		pool:      pool.New(),
@@ -33,44 +36,41 @@ func Init() *Layer {
 	}
 }
 
+// SendTransp channel for packets to send to transport
 func (l *Layer) SendTransp() <-chan *sip.Packet {
 	return l.sndTransp
 }
 
+// SendTU channel for packets to send to TU
 func (l *Layer) SendTU() <-chan *sip.Packet {
 	return l.sndTU
 }
 
+// Err channel for errors
 func (l *Layer) Err() <-chan error {
 	return l.err
 }
 
-func (l *Layer) passToTU(pack *sip.Packet) {
-	select {
-	case l.sndTU <- pack:
-		logger.Log("txn:layer: pass packet to TU")
-	case <-time.After(500 * time.Millisecond):
-		logger.Err("txn:layer: failed to send to TU")
+// Destroy transaction for SIP packet on layer level
+func (l *Layer) Destroy(pack *sip.Packet) {
+	if pack.Message == nil {
+		logger.Err("layer Destroy got invalid SIP message")
+		return
 	}
+	branchID := pack.Message.TopViaBranch()
+	logger.Log("lookup transaction %q to destroy", branchID)
+
+	txn, found := l.pool.Get(branchID)
+
+	if !found {
+		logger.Err("transaction %q not found", branchID)
+		return
+	}
+
+	txn.Terminate()
 }
 
-func (l *Layer) passToTransp(pack *sip.Packet) {
-	logger.Log("txn:layer: to transport message %q", pack.Message.FirstLine())
-	select {
-	case l.sndTransp <- pack:
-	case <-time.After(500 * time.Millisecond):
-		logger.Err("txn:layer: failed to send message to transport. Channel blocked")
-	}
-}
-
-func (l *Layer) passErr(err error) {
-	select {
-	case l.err <- err:
-	case <-time.After(500 * time.Millisecond):
-		logger.Err("txn:layer: failed to send error. Channel blocked")
-	}
-}
-
+// RecvTU process packets received from TU
 func (l *Layer) RecvTU(pack *sip.Packet) {
 	logger.Log("transaction received message from TU")
 	if pack.Message == nil {
@@ -99,11 +99,7 @@ func (l *Layer) RecvTU(pack *sip.Packet) {
 	logger.Err("transaction %q does not exists", pack.Message.FirstLine())
 }
 
-func (l *Layer) Destroy(branchID string) {
-	logger.Log("txn:layer:pool: destroy transaction %q", branchID)
-	l.pool.Delete(branchID)
-}
-
+// RecvTransp to process packages received from network
 func (l *Layer) RecvTransp(pack *sip.Packet) {
 	if pack.Message == nil {
 		logger.Err("empty Message received on %q from %q", pack.LocalSock, pack.RemoteSock)
@@ -120,8 +116,6 @@ func (l *Layer) RecvTransp(pack *sip.Packet) {
 		l.serverTxn(pack)
 		return
 	}
-
-	l.clientTxn(pack)
 }
 
 // process incoming SIP packet from network
@@ -138,6 +132,28 @@ func (l *Layer) serverTxn(pack *sip.Packet) {
 	}())
 }
 
-func (l *Layer) clientTxn(pack *sip.Packet) {
-	logger.Wrn("TODO: client transaction is not yet implemented")
+func (l *Layer) passToTU(pack *sip.Packet) {
+	select {
+	case l.sndTU <- pack:
+		logger.Log("txn:layer: pass packet to TU")
+	case <-time.After(500 * time.Millisecond):
+		logger.Err("txn:layer: failed to send to TU")
+	}
+}
+
+func (l *Layer) passToTransp(pack *sip.Packet) {
+	logger.Log("txn:layer: to transport message %q", pack.Message.FirstLine())
+	select {
+	case l.sndTransp <- pack:
+	case <-time.After(500 * time.Millisecond):
+		logger.Err("txn:layer: failed to send message to transport. Channel blocked")
+	}
+}
+
+func (l *Layer) passErr(err error) {
+	select {
+	case l.err <- err:
+	case <-time.After(500 * time.Millisecond):
+		logger.Err("txn:layer: failed to send error. Channel blocked")
+	}
 }

@@ -47,7 +47,7 @@ func (txn *ClientInvite) Consume(pack *sip.Packet) {
 			txn.layer.passToTU(pack)
 		case resp.IsSuccess():
 			txn.layer.passToTU(pack)
-			txn.terminate()
+			txn.Terminate()
 		case resp.IsRedirOrError(): // 300-699
 			txn.layer.passToTU(pack)
 			txn.sendACK(pack)
@@ -86,7 +86,7 @@ func (txn *ClientInvite) sendACK(pack *sip.Packet) {
 
 func (txn *ClientInvite) complete() {
 	if txn.IsReliable() {
-		txn.terminate()
+		txn.Terminate()
 		logger.Log("txn:client:inv: skip timer D for reliable transport")
 		return
 	}
@@ -94,7 +94,7 @@ func (txn *ClientInvite) complete() {
 	go func() {
 		select {
 		case <-txn.timer.FireD():
-			txn.terminate()
+			txn.Terminate()
 		case <-txn.halt:
 		}
 	}()
@@ -119,7 +119,7 @@ func (txn *ClientInvite) timerA() {
 }
 
 func (txn *ClientInvite) timerB() {
-	defer txn.terminate()
+	defer txn.Terminate()
 	select {
 	case <-txn.timer.FireB():
 		if txn.state.IsCalling() {

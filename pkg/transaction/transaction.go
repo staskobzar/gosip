@@ -105,17 +105,12 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 	// 3. the method of the request matches the one that created the
 	// transaction, except for ACK, where the method of the request
 	// that created the transaction is INVITE.
-	if msg.IsMethod("ACK") {
-		logger.Wrn("unexpected ACK in server transaction match")
-		return false
-	}
-
-	return txn.req.Message.IsMethod(msg.Method)
+	return msg.IsMethod("ACK") || txn.req.Message.IsMethod(msg.Method)
 }
 
 // stop all running background timers and actions
 // remove transaction from the store
-func (txn *Transaction) terminate() {
+func (txn *Transaction) Terminate() {
 	logger.Log("txn: terminate")
 	select {
 	case <-txn.halt:
@@ -124,7 +119,9 @@ func (txn *Transaction) terminate() {
 		close(txn.halt)
 	}
 	txn.state.Set(state.Terminated)
-	txn.layer.Destroy(txn.BranchID())
+	branchID := txn.BranchID()
+	logger.Log("txn:layer:pool: destroy transaction %q", branchID)
+	txn.layer.pool.Delete(branchID)
 }
 
 func (txn *Transaction) reqTopVia() *sipmsg.HeaderVia {

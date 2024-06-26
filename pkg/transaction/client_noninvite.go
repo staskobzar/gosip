@@ -75,7 +75,7 @@ func (txn *ClientNonInvite) completed() {
 	txn.state.Set(state.Completed)
 	if txn.IsReliable() {
 		logger.Log("txn:client:noninv: terminate for reliable transport")
-		txn.terminate()
+		txn.Terminate()
 		return
 	}
 	// unreliable transport
@@ -86,7 +86,7 @@ func (txn *ClientNonInvite) completed() {
 		case <-txn.halt:
 			return
 		}
-		txn.terminate()
+		txn.Terminate()
 	}()
 }
 
@@ -101,7 +101,7 @@ func (txn *ClientNonInvite) timerF() {
 		txn.layer.passErr(ErrTimeout)
 	}
 	logger.Log("txn:client:noninv: done timer F. set terminated state and destroy transaction")
-	txn.terminate()
+	txn.Terminate()
 }
 
 func (txn *ClientNonInvite) timerE() {

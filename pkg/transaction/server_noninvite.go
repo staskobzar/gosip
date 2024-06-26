@@ -83,13 +83,19 @@ func (txn *ServerNonInvite) completed(pack *sip.Packet) {
 	txn.response = pack
 	txn.layer.passToTransp(pack)
 	txn.state.Set(state.Completed)
+	if txn.IsReliable() {
+		logger.Log("txn:srv:noninv: do not start timer J for a reliable transport")
+		txn.Terminate()
+		return
+	}
 	go func() {
+		logger.Log("txn:srv:noninv: starting timer J for a unreliable transport")
 		select {
 		case <-txn.timer.FireJ():
 		case <-txn.halt:
 			return
 		}
 		logger.Log("txn:srv:noninv: done timer J. set terminated state and destroy transaction")
-		txn.terminate()
+		txn.Terminate()
 	}()
 }
