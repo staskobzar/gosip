@@ -1,3 +1,6 @@
+// Package transaction provides SIP transactions' manager
+// for Invite and Non Invite server and client transaction types
+// It provides channels to exchange SIP Packets with
 package transaction
 
 import (
@@ -9,6 +12,7 @@ import (
 	"strings"
 )
 
+// Transaction kernel for all types of transactions
 type Transaction struct {
 	req   *sip.Packet
 	layer *Layer
@@ -34,6 +38,7 @@ func newTransaction(pack *sip.Packet, layer *Layer) *Transaction {
 	}
 }
 
+// BranchID returns transactions initializing SIP request top Via branch
 func (txn *Transaction) BranchID() string {
 	if via := txn.reqTopVia(); via != nil {
 		return via.Branch
@@ -41,7 +46,7 @@ func (txn *Transaction) BranchID() string {
 	return ""
 }
 
-// IsTranspReliable returns true if transport is not UDP
+// IsReliable returns true if transport is not UDP
 func (txn *Transaction) IsReliable() bool {
 	if txn.req == nil || len(txn.req.SendTo) == 0 {
 		return false
@@ -108,7 +113,7 @@ func (txn *Transaction) MatchServer(msg *sipmsg.Message) bool {
 	return msg.IsMethod("ACK") || txn.req.Message.IsMethod(msg.Method)
 }
 
-// stop all running background timers and actions
+// Terminate stops all running background timers and actions
 // remove transaction from the store
 func (txn *Transaction) Terminate() {
 	logger.Log("txn: terminate")

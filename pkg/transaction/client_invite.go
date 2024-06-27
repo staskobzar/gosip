@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ClientInvite transaction
 type ClientInvite struct {
 	*Transaction
 }

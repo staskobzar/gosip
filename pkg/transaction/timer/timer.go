@@ -1,3 +1,4 @@
+// Package timer provides SIP timers for transaction
 package timer
 
 import (

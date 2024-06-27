@@ -71,6 +71,7 @@ func TestLayerClientNonInvite(t *testing.T) {
 		assert.Equal(t, 0, layer.pool.Len())
 	})
 
+	//nolint:dupl
 	t.Run("early response to proceed state and then complete", func(t *testing.T) {
 		layer, pack := mockNonInvite()
 		pack.SendTo = []net.Addr{&net.TCPAddr{IP: net.IPv4(10, 0, 0, 1), Port: 5060}}
@@ -182,6 +183,7 @@ func TestLayerServerNonInvite(t *testing.T) {
 		}
 	})
 
+	//nolint:dupl
 	t.Run("early response", func(t *testing.T) {
 		layer, pack := mockNonInvite()
 		pack.SendTo = []net.Addr{&net.TCPAddr{IP: net.IPv4(10, 0, 0, 1), Port: 5060}}
@@ -203,10 +205,7 @@ func TestLayerServerNonInvite(t *testing.T) {
 
 func TestDestroy(t *testing.T) {
 	layer, pack := mockInvite()
-	assert.NotPanics(t, func() {
-		layer.Destroy(pack)
-
-	}, "not found")
+	assert.NotPanics(t, func() { layer.Destroy(pack) }, "not found")
 	pack.Message = nil
 	assert.NotPanics(t, func() {
 		layer.Destroy(pack)
@@ -216,15 +215,11 @@ func TestDestroy(t *testing.T) {
 func TestRecvTU(t *testing.T) {
 	layer, pack := mockInvite()
 	pack.Message = nil
-	assert.NotPanics(t, func() {
-		layer.RecvTU(pack)
-	}, "Message is nil")
+	assert.NotPanics(t, func() { layer.RecvTU(pack) }, "Message is nil")
 }
 
 func TestRecvTransp(t *testing.T) {
 	layer, pack := mockInvite()
 	pack.Message = nil
-	assert.NotPanics(t, func() {
-		layer.RecvTransp(pack)
-	}, "Message is nil")
+	assert.NotPanics(t, func() { layer.RecvTransp(pack) }, "Message is nil")
 }

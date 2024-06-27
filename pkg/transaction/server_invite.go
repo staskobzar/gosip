@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+// ServerInvite transaction
 type ServerInvite struct {
 	mu sync.Mutex
 	*Transaction

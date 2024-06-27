@@ -160,7 +160,7 @@ func TestServerNonInviteConsume(t *testing.T) {
 			t.J = 10 * time.Millisecond // reset to low value
 			return t
 		}
-		txn.layer.pool.Add(txn)
+		assert.Nil(t, txn.layer.pool.Add(txn))
 		assert.Equal(t, 1, txn.layer.pool.Len())
 
 		resp := &sip.Packet{

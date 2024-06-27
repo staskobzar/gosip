@@ -21,6 +21,7 @@ func (t *mockTxn) Match(*sipmsg.Message) (sip.Transaction, bool) {
 	return nil, false
 }
 func (t *mockTxn) BranchID() string { return t.branch }
+func (t *mockTxn) Terminate()       {}
 
 func TestPool(t *testing.T) {
 	p := New()

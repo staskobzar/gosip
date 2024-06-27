@@ -1,3 +1,4 @@
+// Package pool provides storage for transactions
 package pool
 
 import (
@@ -9,19 +10,23 @@ import (
 	"sync"
 )
 
+// Error for pool package
 var Error = errors.New("transactions:pool")
 
+// Pool storage of the SIP transactions
 type Pool struct {
 	mu sync.RWMutex
 	m  map[string]sip.Transaction
 }
 
+// New pool create
 func New() *Pool {
 	return &Pool{
 		m: make(map[string]sip.Transaction),
 	}
 }
 
+// Add a transaction to the pool
 func (p *Pool) Add(txn sip.Transaction) error {
 	if _, ok := p.Get(txn.BranchID()); ok {
 		return fmt.Errorf("%w: already exists %q", Error, txn.BranchID())
@@ -31,11 +36,14 @@ func (p *Pool) Add(txn sip.Transaction) error {
 	return nil
 }
 
+// Delete a transaction from the pool by id
 func (p *Pool) Delete(id string) {
 	p.del(id)
 	logger.Log("txn:pool: number of transactions in the pool after delete: %d", p.Len())
 }
 
+// Get transcation from pool by top Via branch and returns
+// the transaction if found and true if found or nil and false if not found
 func (p *Pool) Get(branch string) (sip.Transaction, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -43,12 +51,14 @@ func (p *Pool) Get(branch string) (sip.Transaction, bool) {
 	return txn, ok
 }
 
+// Len returns a number of transactions in the pool
 func (p *Pool) Len() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return len(p.m)
 }
 
+// Match transaction in pools against SIP message
 func (p *Pool) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	branch := msg.TopViaBranch()
 	txn, found := p.Get(branch)

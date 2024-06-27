@@ -81,12 +81,15 @@ func (l *Layer) RecvTU(pack *sip.Packet) {
 	// if request then try to create a new client transaction
 	if pack.Message.IsRequest() {
 		logger.Log("create and add new client transaction")
-		l.pool.Add(func() sip.Transaction {
+		err := l.pool.Add(func() sip.Transaction {
 			if pack.Message.IsInvite() {
 				return initClientInvite(pack, l)
 			}
 			return initClientNonInvite(pack, l)
 		}())
+		if err != nil {
+			logger.Err("%s", err)
+		}
 		return
 	}
 
@@ -124,12 +127,15 @@ func (l *Layer) serverTxn(pack *sip.Packet) {
 	logger.Log("txn:layer: create and store new server transaction with branch %q",
 		pack.Message.TopViaBranch())
 
-	l.pool.Add(func() sip.Transaction {
+	err := l.pool.Add(func() sip.Transaction {
 		if pack.Message.IsInvite() {
 			return initServerInvite(pack, l)
 		}
 		return initServerNonInvite(pack, l)
 	}())
+	if err != nil {
+		logger.Err("%s", err)
+	}
 }
 
 func (l *Layer) passToTU(pack *sip.Packet) {

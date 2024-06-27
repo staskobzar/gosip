@@ -140,7 +140,8 @@ func TestTickerG(t *testing.T) {
 		t1, t2 time.Duration
 		want   []time.Duration
 	}{
-		{500 * time.Millisecond, 4 * time.Second,
+		{
+			500 * time.Millisecond, 4 * time.Second,
 			[]time.Duration{
 				500 * time.Millisecond,
 				1 * time.Second,
@@ -150,7 +151,8 @@ func TestTickerG(t *testing.T) {
 				4 * time.Second,
 			},
 		},
-		{1 * time.Second, 4 * time.Second,
+		{
+			1 * time.Second, 4 * time.Second,
 			[]time.Duration{
 				1 * time.Second,
 				2 * time.Second,

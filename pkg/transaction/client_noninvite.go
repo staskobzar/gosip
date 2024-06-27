@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ClientNonInvite transaction
 type ClientNonInvite struct {
 	*Transaction
 }
@@ -32,6 +33,7 @@ func initClientNonInvite(pack *sip.Packet, layer *Layer) *ClientNonInvite {
 	return txn
 }
 
+// Consume SIP requests and responses
 func (txn *ClientNonInvite) Consume(pack *sip.Packet) {
 	if pack.Message == nil {
 		logger.Err("txn:client:noninv: consume packet has <nil> SIP Message")

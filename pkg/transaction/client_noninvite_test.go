@@ -12,7 +12,6 @@ import (
 )
 
 func TestClientNonInviteInit(t *testing.T) {
-
 	t.Run("set trying and sends first request to transport when terminates no fail", func(t *testing.T) {
 		layer, pack := mockNonInvite()
 		txn := initClientNonInvite(pack, layer)

@@ -7,6 +7,7 @@ import (
 	"gosip/pkg/transaction/state"
 )
 
+// ServerNonInvite transaction
 type ServerNonInvite struct {
 	*Transaction
 	response *sip.Packet
@@ -18,7 +19,7 @@ func initServerNonInvite(pack *sip.Packet, layer *Layer) *ServerNonInvite {
 	}
 	logger.Log("txn:srv:noninv: init new transaction in trying state")
 	txn.state.Set(state.Trying)
-	txn.layer.passToTU(pack) // TODO: ?? should it be done in goroutin ??
+	txn.layer.passToTU(pack)
 	return txn
 }
 
@@ -64,6 +65,7 @@ func (txn *ServerNonInvite) Consume(pack *sip.Packet) {
 	}
 }
 
+// Match server transactions in the store
 func (txn *ServerNonInvite) Match(msg *sipmsg.Message) (sip.Transaction, bool) {
 	if txn.MatchServer(msg) {
 		return txn, true
