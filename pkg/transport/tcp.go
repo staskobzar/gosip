@@ -2,10 +2,12 @@ package transport
 
 import (
 	"context"
-	"gosip/pkg/logger"
 	"net"
+
+	"gosip/pkg/logger"
 )
 
+// TCP transport connection.
 type TCP struct {
 	conn *net.TCPConn
 }
@@ -20,12 +22,14 @@ func (tcp *TCP) consume(ctx context.Context, rcv chan<- Packet, store *Store[Con
 	for {
 		if ctx.Err() != nil {
 			logger.Wrn("connection %q is terminated by contex", connName)
+
 			break
 		}
 
 		n, err := tcp.conn.Read(buf)
 		if err != nil {
 			logger.Err("failed read conn %q: %s", connName, err)
+
 			break
 		}
 

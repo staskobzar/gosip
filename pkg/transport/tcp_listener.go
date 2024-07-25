@@ -3,11 +3,13 @@ package transport
 import (
 	"context"
 	"fmt"
-	"gosip/pkg/logger"
 	"net"
 	"time"
+
+	"gosip/pkg/logger"
 )
 
+// TCPListener tcp protocol listener.
 type TCPListener struct {
 	laddr *net.TCPAddr
 	ln    *net.TCPListener
@@ -16,12 +18,18 @@ type TCPListener struct {
 func (tcpln *TCPListener) listen(ctx context.Context) error {
 	ln, err := net.ListenTCP("tcp", tcpln.laddr)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed start tcp listener: %w", err)
+	}
+
+	// update tcp address
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		tcpln.laddr = addr
 	}
 
 	logger.Log("start TCP listener on %q", tcpln.laddr)
 
 	tcpln.ln = ln
+
 	return ctx.Err()
 }
 
@@ -33,13 +41,15 @@ func (tcpln *TCPListener) accept(ctx context.Context) (<-chan Conn, <-chan error
 		for {
 			tcpconn, err := tcpln.ln.AcceptTCP()
 			if err != nil {
-				errCh <- fmt.Errorf("failed to accept connection for %q: %s", tcpln.laddr, err)
+				errCh <- fmt.Errorf("failed to accept connection for %q: %w", tcpln.laddr, err)
+
 				break
 			}
 
 			if ctx.Err() != nil {
-				logger.Wrn("accept routine %q is terminated by context: %s",
+				errCh <- fmt.Errorf("accept routine %q is terminated by context: %w",
 					tcpln.laddr, ctx.Err())
+
 				break
 			}
 
@@ -53,6 +63,7 @@ func (tcpln *TCPListener) accept(ctx context.Context) (<-chan Conn, <-chan error
 		close(connCh)
 		close(errCh)
 	}()
+
 	return connCh, errCh
 }
 
@@ -62,6 +73,7 @@ func (tcpln *TCPListener) key() string {
 
 func (tcpln *TCPListener) close() {
 	logger.Wrn("closing listener %q", tcpln.laddr)
+
 	if err := tcpln.ln.Close(); err != nil {
 		logger.Err("failed to close TCP listener %q: %s", tcpln.laddr, err)
 	}

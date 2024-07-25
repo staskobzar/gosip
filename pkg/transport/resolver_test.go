@@ -1,11 +1,12 @@
 package transport
 
 import (
+	"net"
+	"testing"
+
 	"gosip/pkg/dns"
 	"gosip/pkg/sip"
 	"gosip/pkg/sipmsg"
-	"net"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -21,6 +22,7 @@ func (m *mockDNS) LookupSRV(string) []*dns.SRV     { return m.srv }
 func (m *mockDNS) LookupAddr(string) []net.IP      { return m.ips }
 
 func TestManagerResolve(t *testing.T) {
+	t.Parallel()
 	// helper closures
 	toURI := func(sipuri string) *sipmsg.URI {
 		uri, _ := sipmsg.ParseURI(sipuri)
@@ -156,12 +158,15 @@ func TestManagerResolve(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			mgr := &Manager{dns: tc.dns, support: tc.support}
 
 			addrs, err := mgr.Resolve(tc.uri)
 			assert.ErrorIs(t, err, tc.wantErr)
 
 			assert.Equal(t, len(tc.wantAddr), len(addrs))
+
 			for _, addr := range addrs {
 				assert.Contains(t, tc.wantAddr, addr)
 			}
@@ -170,6 +175,8 @@ func TestManagerResolve(t *testing.T) {
 }
 
 func TestManagerNaptrSrvRec(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]struct {
 		support    tTransp
 		input      []*dns.NAPTR
@@ -237,6 +244,8 @@ func TestManagerNaptrSrvRec(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			mgr := &Manager{support: tc.support}
 
 			transp, target, err := mgr.naptrSrvRec(tc.input)

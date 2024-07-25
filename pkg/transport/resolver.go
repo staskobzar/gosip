@@ -2,67 +2,87 @@ package transport
 
 import (
 	"fmt"
-	"gosip/pkg/dns"
-	"gosip/pkg/sip"
-	"gosip/pkg/sipmsg"
 	"net"
 	"strconv"
 	"strings"
+
+	"gosip/pkg/dns"
+	"gosip/pkg/sip"
+	"gosip/pkg/sipmsg"
 )
 
+// ResolveRURI tries to resolve SIP packet RURI domain part and
+// puts resolved IPs and ports to ReqAddrs list.
+// If resolve fails then send back error via err channel.
+// In case of succes updated Packet will be send via resolve channel.
 func (mgr *Manager) ResolveRURI(pack sipmsg.Packet) {
 	go func(pack sipmsg.Packet) {
 		if pack.Message == nil {
 			perr("cannot resolve RURI: packet message is nil")
+
 			return
 		}
+
 		sippack := sip.Packet{
+			SendTo:     nil,
+			ReqAddrs:   nil,
 			LocalSock:  pack.Laddr,
 			RemoteSock: pack.Raddr,
 			Message:    pack.Message,
 		}
 
 		if pack.Message.IsResponse() {
-			mgr.resolv <- sippack
+			mgr.passResolv(sippack)
 			dbgr("do not resolve response")
+
 			return
 		}
 
 		addrs, err := mgr.Resolve(pack.Message.RURI)
 		if err != nil {
 			mgr.passErr(err, &sippack)
+
 			return
 		}
 
 		sippack.ReqAddrs = addrs
+
 		mgr.serReceived(pack.Message)
-		mgr.resolv <- sippack
+
+		mgr.passResolv(sippack)
 	}(pack)
 }
 
+// Resolve SIP Request URI and return list of resolved net.Addr.
 func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	dbgr("resolving uri %q", uri)
+
 	if mgr.dns == nil {
 		return nil, fmt.Errorf("%w: manager dns object is nil", ErrResolv)
 	}
+
 	if uri == nil {
 		return nil, fmt.Errorf("%w: uri is nil", ErrResolv)
 	}
 
 	if len(uri.Transport) > 0 {
 		dbgr("uri has transport param %q", uri.Transport)
+
 		transp := strToTransport(uri.Transport)
+
 		if transp == tUnknown {
 			return nil, fmt.Errorf("%w: invalid or unsupported transport %q", ErrResolv, uri.Transport)
 		}
+
 		return mgr.getPortIP(transp, uri, nil)
 	}
 
 	// if no transport protocol is specified, but the TARGET is a
 	// numeric IP address, the client SHOULD use UDP for a SIP URI, and TCP
-	// for a SIPS URI
+	// for a SIPS URI.
 	if ipaddr := net.ParseIP(uri.Hostport); ipaddr != nil {
 		dbgr("uri host is an IP address %q", ipaddr)
+
 		return mgr.getPortIP(schemeToTransp(uri.Scheme), uri, nil)
 	}
 
@@ -71,11 +91,15 @@ func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	// client SHOULD use UDP for a SIP URI, and TCP for a SIPS URI.
 	if host, port, err := net.SplitHostPort(uri.Hostport); err == nil {
 		dbgr("uri host part has port %q", uri.Hostport)
+
 		if ipaddr := net.ParseIP(host); ipaddr != nil {
 			dbgr("hostpart is IP %q", ipaddr)
+
 			return netAddr(schemeToTransp(uri.Scheme), []string{host}, port)
 		}
+
 		dbgr("hostpart is domain %q", host)
+
 		return mgr.lookupAddr(schemeToTransp(uri.Scheme), host, port)
 	}
 
@@ -83,46 +107,58 @@ func (mgr *Manager) Resolve(uri *sipmsg.URI) ([]net.Addr, error) {
 	// target is not a numeric IP address, the client SHOULD perform a NAPTR
 	// query for the domain in the URI.
 	dbgr("trying to perform NAPTR lookup")
+
 	if naptr := mgr.dns.LookupNAPTR(uri.Hostport); len(naptr) > 0 {
 		dbgr("found %d NAPTR records", len(naptr))
+
 		transp, srvtarget, err := mgr.naptrSrvRec(naptr)
 		if err != nil {
 			return nil, err
 		}
+
 		srvrr := mgr.dns.LookupSRV(srvtarget)
+
 		if len(srvrr) == 0 {
 			return nil, fmt.Errorf("%w: failed resolve SRV rec %q", ErrResolv, srvtarget)
 		}
+
 		return mgr.srvToAddr(transp, srvrr)
 	}
 
 	// If no NAPTR records are found, the client constructs SRV queries for
 	// those transport protocols it supports, and does a query for each.
 	dbgr("no NAPTR records found. trying SRV per supported transport")
+
 	for _, transp := range []tTransp{tUDP, tTCP, tTLS, tSCTP} {
 		if transp != tTLS && uri.Scheme == "sips" {
 			continue
 		}
+
 		if mgr.support&transp != transp {
 			continue
 		}
+
 		srv := mgr.lookupSRV(transp, uri.Scheme, uri.Hostport)
 		if len(srv) == 0 {
 			wrnr("no SRV records found")
+
 			continue
 		}
+
 		return mgr.srvToAddr(transp, srv)
 	}
 
 	// If no SRV records are found, the client SHOULD use TCP for a SIPS
 	// URI, and UDP for a SIP URI.
 	dbgr("no SRV records found")
+
 	return mgr.lookupAddr(schemeToTransp(uri.Scheme), uri.Hostport, "")
 }
 
 // TODO: RFC3263#5 Server Usage
 func (mgr *Manager) ResolveVia(via *sipmsg.HeaderVia) ([]net.Addr, error) {
 	via = via
+
 	return nil, nil
 }
 
@@ -135,6 +171,7 @@ func (mgr *Manager) getPortIP(transp tTransp, uri *sipmsg.URI, srv []*dns.SRV) (
 		// protocol.
 		if ipaddr := net.ParseIP(host); ipaddr != nil {
 			dbgr("uri host is IP %q", ipaddr)
+
 			return netAddr(transp, []string{host}, port)
 		}
 		// If the TARGET was not a numeric IP address, but a port is present in
@@ -145,6 +182,7 @@ func (mgr *Manager) getPortIP(transp tTransp, uri *sipmsg.URI, srv []*dns.SRV) (
 
 	if ipaddr := net.ParseIP(uri.Hostport); ipaddr != nil {
 		dbgr("uri host is IP %q", ipaddr)
+
 		return netAddr(transp, []string{uri.Hostport}, "")
 	}
 
@@ -156,11 +194,13 @@ func (mgr *Manager) getPortIP(transp tTransp, uri *sipmsg.URI, srv []*dns.SRV) (
 		// If it was not, because a transport was specified explicitly, the
 		// client performs an SRV query for that specific transport
 		dbgr("no srv records for ip:port lookup. trying srv")
+
 		srv = mgr.lookupSRV(transp, uri.Scheme, uri.Hostport) // if we got here then Hostport is host only
 	}
 
 	if len(srv) == 0 {
 		dbgr("still no srv records. lookup A record for %q", uri.Hostport)
+
 		return mgr.lookupAddr(transp, uri.Hostport, "")
 	}
 
@@ -188,6 +228,7 @@ func (mgr *Manager) lookupSRV(transp tTransp, scheme, domain string) []*dns.SRV 
 		if strings.EqualFold(scheme, "sips") || transp == tTLS {
 			return "_sips."
 		}
+
 		return "_sip."
 	}
 
@@ -205,6 +246,7 @@ func (mgr *Manager) naptrSrvRec(naptr []*dns.NAPTR) (tTransp, string, error) {
 		if !found {
 			return tUnknown
 		}
+
 		switch transp {
 		case "d2u":
 			return support & tUDP
@@ -214,6 +256,7 @@ func (mgr *Manager) naptrSrvRec(naptr []*dns.NAPTR) (tTransp, string, error) {
 			if scheme == "sips" {
 				return support & tTLS
 			}
+
 			return support & tTCP
 		default:
 			return tUnknown
@@ -223,12 +266,16 @@ func (mgr *Manager) naptrSrvRec(naptr []*dns.NAPTR) (tTransp, string, error) {
 	for _, rr := range naptr {
 		if !strings.Contains(strings.ToLower(rr.Flags), "s") {
 			wrnr("NAPTR record has incompatible flags %q", rr.Flags)
+
 			continue
 		}
+
 		if transp := matchService(mgr.support, rr.Service); transp != tUnknown {
 			dbgr("match NAPTR record service %q, target: %q", rr.Service, rr.Replace)
+
 			return transp, rr.Replace, nil
 		}
+
 		wrnr("NAPTR record service %q is not supported by manager transports", rr.Service)
 	}
 
@@ -237,14 +284,18 @@ func (mgr *Manager) naptrSrvRec(naptr []*dns.NAPTR) (tTransp, string, error) {
 
 func (mgr *Manager) srvToAddr(transp tTransp, srv []*dns.SRV) ([]net.Addr, error) {
 	addrs := make([]net.Addr, 0, len(srv))
+
 	for _, rr := range srv {
 		dbgr("using srv record %#v", rr)
+
 		addr, err := mgr.lookupAddr(transp, rr.Target, strconv.Itoa(rr.Port))
 		if err != nil {
 			return nil, err
 		}
+
 		addrs = append(addrs, addr...)
 	}
+
 	return addrs, nil
 }
 
@@ -252,12 +303,16 @@ func (mgr *Manager) lookupAddr(transp tTransp, target, port string) ([]net.Addr,
 	ips := mgr.dns.LookupAddr(target)
 	if len(ips) == 0 {
 		wrnr("no addresses found for %q. trying lookup host", target)
+
 		return mgr.lookupHost(transp, target, port)
 	}
+
 	addrs := make([]string, len(ips))
+
 	for i, host := range ips {
 		addrs[i] = host.String()
 	}
+
 	return netAddr(transp, addrs, port)
 }
 
@@ -266,6 +321,7 @@ func (mgr *Manager) lookupHost(transp tTransp, target, port string) ([]net.Addr,
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to resolv host %q: %s", ErrResolv, target, err)
 	}
+
 	return netAddr(transp, addrs, port)
 }
 
@@ -276,12 +332,15 @@ func (mgr *Manager) serReceived(msg *sipmsg.Message) {
 
 func netAddr(transp tTransp, hosts []string, port string) ([]net.Addr, error) {
 	dbgr("trying to resolve %d addresses", len(hosts))
+
 	defaultPort := func(port, defPort string) string {
 		if len(port) > 0 {
 			return port
 		}
+
 		return defPort
 	}
+
 	toAddr := func(host, port string) (net.Addr, error) {
 		switch transp {
 		case tTCP:
@@ -297,47 +356,49 @@ func netAddr(transp tTransp, hosts []string, port string) ([]net.Addr, error) {
 			return nil, fmt.Errorf("TODO: invalid transport %d", transp)
 		}
 	}
+
 	addrs := make([]net.Addr, len(hosts))
+
 	for i, host := range hosts {
 		addr, err := toAddr(host, port)
 		dbgr("resolved address %q", addr)
+
 		if err != nil {
-			return nil, fmt.Errorf("%w: failed to parse host %q: %s",
+			return nil, fmt.Errorf("%w: failed to parse host %q: %w",
 				ErrResolv, host, err)
 		}
+
 		addrs[i] = addr
 	}
+
 	return addrs, nil
 }
 
 func strToTransport(transp string) tTransp {
 	switch strings.ToLower(transp) {
-	case "sctp":
+	case "sctp": //nolint:goconst
 		return tSCTP
-	case "tcp":
+	case "tcp": //nolint:goconst
 		return tTCP
-	case "tls":
+	case "tls": //nolint:goconst
 		return tTLS
-	case "udp":
+	case "udp": //nolint:goconst
 		return tUDP
 	default:
 		wrnr("unknown transport param %q", transp)
+
 		return tUnknown
 	}
-}
-
-func transpPort(transp tTransp) int {
-	if transp == tTLS {
-		return 5061
-	}
-	return 5060
 }
 
 func schemeToTransp(scheme string) tTransp {
 	if strings.EqualFold(scheme, "sips") {
 		dbgr("using TCP transport for %q uri scheme", scheme)
+
 		return tTCP
 	}
+
 	dbgr("using UDP transport for %q uri scheme", scheme)
+
 	return tUDP
 }
