@@ -29,7 +29,7 @@ func mockInviteMsg() *sipmsg.Message {
 	return msg
 }
 
-func TestTransportSendUDP(t *testing.T) {
+func TestTransportSend(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,8 +76,30 @@ func TestTransportSendUDP(t *testing.T) {
 			Message: mockInviteMsg(),
 		}
 
-		mgr.Send(pack)
-		assert.Equal(t, "INVITE sip:bob@biloxi.com SIP/2.0\r\n", string(<-ch)[:35])
+		t.Run("send successfully", func(t *testing.T) {
+			mgr.Send(pack)
+			assert.Equal(t, "INVITE sip:bob@biloxi.com SIP/2.0\r\n", string(<-ch)[:35])
+			assert.Equal(t, 1, mgr.sock.Len())
+		})
+
+		t.Run("fail when no local listener socket found", func(t *testing.T) {
+			for name, _ := range mgr.sock.pool {
+				mgr.sock.Del(name)
+			}
+
+			assert.Equal(t, 0, mgr.sock.Len())
+
+			err := mgr.SendUDP(addr, nil, pack.Message)
+			assert.ErrorContains(t, err, "was not found")
+		})
+
+		t.Run("fail when found listener is not UDP", func(t *testing.T) {
+			assert.Equal(t, 0, mgr.sock.Len())
+			mgr.sock.Put(sockName(addr), &TCPListener{})
+
+			err := mgr.SendUDP(addr, nil, pack.Message)
+			assert.ErrorContains(t, err, "type is not UDPConn")
+		})
 	})
 
 	t.Run("send creating TCP new connection", func(t *testing.T) {
@@ -106,21 +128,63 @@ func TestTransportSendUDP(t *testing.T) {
 			return mgr.ListenTCP(ctx, "127.0.0.1:0")
 		})
 
-		addr, ch := srvStart()
-		pack := &sip.Packet{
-			SendTo:  []net.Addr{addr},
-			Message: mockInviteMsg(),
-		}
+		t.Run("successfully sent when no conn in store", func(t *testing.T) {
+			addr, ch := srvStart()
+			pack := &sip.Packet{
+				SendTo:  []net.Addr{addr},
+				Message: mockInviteMsg(),
+			}
 
-		// assert.Equal(t, 0, mgr.conn.Len())
+			assert.Equal(t, 0, mgr.conn.Len())
 
-		mgr.Send(pack)
-		select {
-		case err := <-mgr.Err():
-			t.Errorf("failed send: %q", err.Err)
-		case msg := <-ch:
-			assert.Equal(t, "INVITE sip:bob@biloxi.com SIP/2.0\r\n", string(msg[:35]))
-			// assert.Equal(t, 1, mgr.conn.Len())
-		}
+			mgr.Send(pack)
+			select {
+			case err := <-mgr.Err():
+				t.Errorf("failed send: %q", err.Err)
+			case msg := <-ch:
+				assert.Equal(t, "INVITE sip:bob@biloxi.com SIP/2.0\r\n", string(msg[:35]))
+				assert.Equal(t, 1, mgr.conn.Len())
+			}
+		})
+
+		t.Run("fail when found not TCP in the store", func(t *testing.T) {
+			for name, _ := range mgr.conn.pool {
+				mgr.conn.Del(name)
+			}
+
+			assert.Equal(t, 0, mgr.conn.Len())
+			mgr.conn.Put("tcp:foo:5050", &UDP{})
+
+			pack := &sip.Packet{
+				SendTo:  []net.Addr{&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 45656}},
+				Message: mockInviteMsg(),
+			}
+			mgr.Send(pack)
+			assert.ErrorContains(t, (<-mgr.Err()).Err, "type is not TCPConn")
+		})
+
+		t.Run("send to existing conn", func(t *testing.T) {
+			addr, ch := srvStart()
+
+			conn, err := net.DialTCP("tcp", nil, addr.(*net.TCPAddr))
+			assert.Nil(t, err)
+
+			tcp := &TCP{conn: conn}
+			mgr.conn.Put(tcp.key(), tcp)
+
+			pack := &sip.Packet{
+				SendTo:    []net.Addr{addr},
+				LocalSock: conn.LocalAddr(),
+				Message:   mockInviteMsg(),
+			}
+
+			mgr.Send(pack)
+			select {
+			case err := <-mgr.Err():
+				t.Errorf("failed send: %q", err.Err)
+			case msg := <-ch:
+				assert.Equal(t, "INVITE sip:bob@biloxi.com SIP/2.0\r\n", string(msg[:35]))
+			}
+		})
 	})
 }

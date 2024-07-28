@@ -65,6 +65,7 @@ type Manager struct {
 	rcv     chan Packet
 	resolv  chan sip.Packet
 	err     chan ErrChan
+	chConn  chan Conn
 	support tTransp
 	dns     sip.DNS
 }
@@ -99,6 +100,7 @@ func Init() *Manager {
 		rcv:    make(chan Packet),     // 32),
 		resolv: make(chan sip.Packet), // 32),
 		err:    make(chan ErrChan),    // 32),
+		chConn: make(chan Conn),
 	}
 }
 
@@ -197,43 +199,15 @@ func (mgr *Manager) SendTCP(src, dst net.Addr, msg *sipmsg.Message) error {
 	conn, found := mgr.conn.Get(name)
 
 	if !found {
-		addr, err := net.ResolveTCPAddr("tcp", dst.String())
-		if err != nil {
-			return fmt.Errorf("%w: failed to resolve destination addr %q: %w",
-				ErrSend, dst, err)
-		}
-
-		conn, err := net.DialTCP("tcp", nil, addr)
-		if err != nil {
-			return fmt.Errorf("%w: failed to connect %q: %w", ErrSend, addr, err)
-		}
-
-		// tcp:=&TCP{conn: conn}
-		// tcp consume ???
-
-		n, err := conn.Write(msg.Byte())
-		if err != nil {
-			return fmt.Errorf("%w: failed to write to conn %q: %w", ErrSend, addr, err)
-		}
-
-		dbg("sent %d bytes to %q", n, addr)
-
-		return nil
+		return mgr.newTCPConn(dst, msg)
 	}
 
 	tcp, ok := conn.(*TCP)
 	if !ok {
-		return fmt.Errorf("%w: found %q socket but type is not UDPConn", ErrSend, name)
+		return fmt.Errorf("%w: found %q socket but type is not TCPConn", ErrSend, name)
 	}
 
-	n, err := tcp.conn.Write(msg.Byte())
-	if err != nil {
-		return fmt.Errorf("%w: failed to write to conn %q: %w", ErrSend, name, err)
-	}
-
-	dbg("sent %d bytes to %q", n, name)
-
-	return nil
+	return tcp.write(msg.Byte())
 }
 
 // Err returns channel to deliver transport errors.
@@ -251,6 +225,30 @@ func (mgr *Manager) Recv() <-chan Packet {
 // resolved destination in RURI.
 func (mgr *Manager) Resolved() <-chan sip.Packet {
 	return mgr.resolv
+}
+
+func (mgr *Manager) newTCPConn(dst net.Addr, msg *sipmsg.Message) error {
+	addr, err := net.ResolveTCPAddr("tcp", dst.String())
+	if err != nil {
+		return fmt.Errorf("%w: failed to resolve destination addr %q: %w",
+			ErrSend, dst, err)
+	}
+
+	conn, err := net.DialTCP("tcp", nil, addr)
+	if err != nil {
+		return fmt.Errorf("%w: failed to connect %q: %w", ErrSend, addr, err)
+	}
+
+	tcp := &TCP{conn: conn}
+	mgr.conn.Put(tcp.key(), tcp)
+
+	if err := tcp.write(msg.Byte()); err != nil {
+		return fmt.Errorf("new tcp conn: %w", err)
+	}
+
+	mgr.chConn <- tcp // TODO: buffer or timeout sending to avoid blocking
+
+	return nil
 }
 
 func (mgr *Manager) send(pack *sip.Packet) {
@@ -330,6 +328,8 @@ func (mgr *Manager) listen(ctx context.Context, ln Listener) {
 		for {
 			select {
 			case conn := <-connCh:
+				go conn.consume(ctx, mgr.rcv, mgr.conn)
+			case conn := <-mgr.chConn:
 				go conn.consume(ctx, mgr.rcv, mgr.conn)
 			case err := <-chErr:
 				perr("accept connection err: %s", err)

@@ -131,7 +131,7 @@ func TestManagerListenersCancelOnContext(t *testing.T) {
 	assert.Nil(t, mgr.ListenUDP(ctx, "127.0.0.1:0"))
 	assert.Nil(t, mgr.ListenUDP(ctx, "127.0.0.1:0"))
 
-	<-time.After(time.Millisecond)
+	<-time.After(10 * time.Millisecond)
 	assert.Equal(t, 4, mgr.sock.Len())
 
 	cancel()
