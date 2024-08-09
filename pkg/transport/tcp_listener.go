@@ -11,35 +11,46 @@ import (
 
 // TCPListener tcp protocol listener.
 type TCPListener struct {
-	laddr *net.TCPAddr
-	ln    *net.TCPListener
+	laddr net.Addr
+	ln    net.Listener
 }
 
 func (tcpln *TCPListener) listen(ctx context.Context) error {
-	ln, err := net.ListenTCP("tcp", tcpln.laddr)
+	ln, err := net.Listen("tcp", tcpln.laddr.String())
 	if err != nil {
 		return fmt.Errorf("failed start tcp listener: %w", err)
 	}
 
-	// update tcp address
-	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
-		tcpln.laddr = addr
-	}
+	return tcpln.lnSetup(ctx, ln)
+}
+
+func (tcpln *TCPListener) lnSetup(ctx context.Context, ln net.Listener) error {
+	tcpln.laddr = ln.Addr()
 
 	logger.Log("start TCP listener on %q", tcpln.laddr)
 
 	tcpln.ln = ln
 
-	return ctx.Err()
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("%w: listener is already stopped by context: %w", ErrListen, err)
+	}
+
+	return nil
 }
 
 func (tcpln *TCPListener) accept(ctx context.Context) (<-chan Conn, <-chan error) {
+	return tcpln.acceptLoop(ctx, func(conn net.Conn) Conn {
+		return &TCP{conn: conn}
+	})
+}
+
+func (tcpln *TCPListener) acceptLoop(ctx context.Context, toConn func(conn net.Conn) Conn) (<-chan Conn, <-chan error) {
 	connCh := make(chan Conn, 32)
 	errCh := make(chan error)
 
 	go func() {
 		for {
-			tcpconn, err := tcpln.ln.AcceptTCP()
+			tcpconn, err := tcpln.ln.Accept()
 			if err != nil {
 				errCh <- fmt.Errorf("failed to accept connection for %q: %w", tcpln.laddr, err)
 
@@ -54,7 +65,7 @@ func (tcpln *TCPListener) accept(ctx context.Context) (<-chan Conn, <-chan error
 			}
 
 			select {
-			case connCh <- &TCP{conn: tcpconn}:
+			case connCh <- toConn(tcpconn):
 				logger.Log("new tcp connection accepted from %q", tcpconn.RemoteAddr())
 			case <-time.After(time.Millisecond * 100):
 				logger.Err("failed to send connection for %q on blocked channel", tcpln.laddr)

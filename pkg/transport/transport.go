@@ -4,6 +4,7 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -144,6 +145,30 @@ func (mgr *Manager) ListenUDP(ctx context.Context, addrport string) error {
 	return nil
 }
 
+// ListenTLS starts TLS listener and push it into manager's store.
+func (mgr *Manager) ListenTLS(ctx context.Context, addrport string, conf *tls.Config) error {
+	dbg("start TLS listener on %q", addrport)
+
+	addr, err := net.ResolveTCPAddr("tcp", addrport)
+	if err != nil {
+		return fmt.Errorf("%w: failed to resolve TLS address %q: %w",
+			ErrListen, addrport, err)
+	}
+
+	if err := mgr.validIP(addr.IP, tTLS); err != nil {
+		return err
+	}
+
+	if conf == nil {
+		return fmt.Errorf("%w: invalid TLS certificate", ErrListen)
+	}
+
+	ln := newTLSListener(addr, conf)
+	go mgr.listen(ctx, ln)
+
+	return nil
+}
+
 // Send sip Packet to network.
 func (mgr *Manager) Send(pack *sip.Packet) {
 	if pack.Message == nil {
@@ -207,7 +232,25 @@ func (mgr *Manager) SendTCP(src, dst net.Addr, msg *sipmsg.Message) error {
 		return fmt.Errorf("%w: found %q socket but type is not TCPConn", ErrSend, name)
 	}
 
-	return tcp.write(msg.Byte())
+	return tcp.write(name, msg.Byte())
+}
+
+// SendTLS sends SIP message to TLS transport.
+func (mgr *Manager) SendTLS(src, dst net.Addr, msg *sipmsg.Message) error {
+	name := connName(src, dst)
+
+	conn, found := mgr.conn.Get(name)
+
+	if !found {
+		return mgr.newTLSConn(dst, msg)
+	}
+
+	tlsconn, ok := conn.(*TLS)
+	if !ok {
+		return fmt.Errorf("%w: found %q socket but type is not TCPConn", ErrSend, name)
+	}
+
+	return tlsconn.write(tlsconn.key(), msg.Byte())
 }
 
 // Err returns channel to deliver transport errors.
@@ -227,6 +270,29 @@ func (mgr *Manager) Resolved() <-chan sip.Packet {
 	return mgr.resolv
 }
 
+// WithResolver setup dns resolver.
+func (mgr *Manager) WithResolver(dns sip.DNS) {
+	mgr.dns = dns
+}
+
+func (mgr *Manager) newTLSConn(dst net.Addr, msg *sipmsg.Message) error {
+	conn, err := tls.Dial("tcp", dst.String(), nil)
+	if err != nil {
+		return fmt.Errorf("%w: failed to connect tls %q: %w", ErrSend, dst, err)
+	}
+
+	tlsconn := &TLS{TCP: &TCP{conn: conn}}
+	mgr.conn.Put(tlsconn.key(), tlsconn)
+
+	if err := tlsconn.write(tlsconn.key(), msg.Byte()); err != nil {
+		return fmt.Errorf("new tcp conn: %w", err)
+	}
+
+	mgr.chConn <- tlsconn // TODO: buffer or timeout sending to avoid blocking
+
+	return nil
+}
+
 func (mgr *Manager) newTCPConn(dst net.Addr, msg *sipmsg.Message) error {
 	addr, err := net.ResolveTCPAddr("tcp", dst.String())
 	if err != nil {
@@ -236,13 +302,13 @@ func (mgr *Manager) newTCPConn(dst net.Addr, msg *sipmsg.Message) error {
 
 	conn, err := net.DialTCP("tcp", nil, addr)
 	if err != nil {
-		return fmt.Errorf("%w: failed to connect %q: %w", ErrSend, addr, err)
+		return fmt.Errorf("%w: failed to connect tcp %q: %w", ErrSend, addr, err)
 	}
 
 	tcp := &TCP{conn: conn}
 	mgr.conn.Put(tcp.key(), tcp)
 
-	if err := tcp.write(msg.Byte()); err != nil {
+	if err := tcp.write(tcp.key(), msg.Byte()); err != nil {
 		return fmt.Errorf("new tcp conn: %w", err)
 	}
 
@@ -274,6 +340,8 @@ func (mgr *Manager) send(pack *sip.Packet) {
 				return mgr.SendUDP(pack.LocalSock, dst, pack.Message)
 			case "tcp":
 				return mgr.SendTCP(pack.LocalSock, dst, pack.Message)
+			case "tls":
+				return mgr.SendTLS(pack.LocalSock, dst, pack.Message)
 			default:
 				return fmt.Errorf("%w: invalid or unsupported network %q", ErrSend, dst.Network())
 			}

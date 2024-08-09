@@ -10,7 +10,7 @@ import (
 
 // TCP transport connection.
 type TCP struct {
-	conn *net.TCPConn
+	conn net.Conn
 }
 
 func (tcp *TCP) consume(ctx context.Context, rcv chan<- Packet, store *Store[Conn]) {
@@ -42,9 +42,7 @@ func (tcp *TCP) key() string {
 	return connName(tcp.conn.LocalAddr(), tcp.conn.RemoteAddr())
 }
 
-func (tcp *TCP) write(msg []byte) error {
-	name := tcp.key()
-
+func (tcp *TCP) write(name string, msg []byte) error {
 	n, err := tcp.conn.Write(msg)
 	if err != nil {
 		return fmt.Errorf("%w: failed to write to conn %q: %w",

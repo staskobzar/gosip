@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"strings"
@@ -22,11 +23,19 @@ func TestManagerListenProto(t *testing.T) {
 		"failed to resolve TCP address")
 
 	assert.ErrorContains(t,
+		mgr.ListenTLS(context.Background(), "foobar", &tls.Config{}),
+		"failed to resolve TLS address")
+
+	assert.ErrorContains(t,
 		mgr.ListenUDP(context.Background(), "foobar"),
 		"failed to resolve UDP address")
 
 	assert.ErrorContains(t,
 		mgr.ListenTCP(context.Background(), "0.0.0.0:5060"),
+		"can not be empty or unspecified")
+
+	assert.ErrorContains(t,
+		mgr.ListenTLS(context.Background(), "0.0.0.0:5060", &tls.Config{}),
 		"can not be empty or unspecified")
 
 	assert.ErrorContains(t,
@@ -111,12 +120,18 @@ func TestListenerListen(t *testing.T) {
 
 	success(&UDP{laddr: &net.UDPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}})
 	success(&TCPListener{laddr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}})
+	success(&TLSListener{TCPListener: &TCPListener{
+		laddr: &TLSAddr{addr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}}}, conf: mockTLSCert()})
 
 	failOnAddr(&UDP{laddr: &net.UDPAddr{IP: net.IP{0, 0, 0, 0}, Port: -5}})
 	failOnAddr(&TCPListener{laddr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: -5}})
+	failOnAddr(&TLSListener{TCPListener: &TCPListener{
+		laddr: &TLSAddr{addr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: -5}}}, conf: mockTLSCert()})
 
 	failOnCtx(&UDP{laddr: &net.UDPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}})
 	failOnCtx(&TCPListener{laddr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}})
+	failOnCtx(&TLSListener{TCPListener: &TCPListener{
+		laddr: &TLSAddr{addr: &net.TCPAddr{IP: net.IP{0, 0, 0, 0}, Port: 0}}}, conf: mockTLSCert()})
 }
 
 func TestManagerListenersCancelOnContext(t *testing.T) {
@@ -131,8 +146,10 @@ func TestManagerListenersCancelOnContext(t *testing.T) {
 	assert.Nil(t, mgr.ListenUDP(ctx, "127.0.0.1:0"))
 	assert.Nil(t, mgr.ListenUDP(ctx, "127.0.0.1:0"))
 
+	assert.Nil(t, mgr.ListenTLS(ctx, "127.0.0.1:0", mockTLSCert()))
+
 	<-time.After(10 * time.Millisecond)
-	assert.Equal(t, 4, mgr.sock.Len())
+	assert.Equal(t, 5, mgr.sock.Len())
 
 	cancel()
 
